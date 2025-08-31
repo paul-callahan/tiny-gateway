@@ -1,0 +1,28 @@
+[project]
+name = "tiny-gateway"
+version = "0.1.0"
+description = "API Gateway with JWT authentication and request proxying"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.20",
+    "pyyaml>=6.0.1",
+    "httpx>=0.24.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+addopts = "-v --cov=app --cov-report=term-missing"
+asyncio_mode = "auto"
