@@ -4,20 +4,28 @@ version = "0.1.0"
 description = "API Gateway with JWT authentication and request proxying"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.116.1",
-    "uvicorn>=0.35.0",
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-    "python-multipart>=0.0.20",
-    "pyyaml>=6.0.1",
-    "httpx>=0.24.0"
+  "fastapi>=0.116.1",
+  "uvicorn[standard]>=0.35.0",
+  "python-jose[cryptography]>=3.5.0",
+  "passlib[bcrypt]>=1.7.4",
+  "python-multipart>=0.0.20",
+  "pyyaml>=6.0.2",
+  "httpx>=0.28.1",
+  "pydantic-settings>=2.10.1",
 ]
 
-[project.optional-dependencies]
-test = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0"
+# Use this if you prefer groups over extras (recommended for dev-only deps)
+[dependency-groups]
+dev = [
+  "pytest>=8.4.1",
+  "pytest-cov>=6.2.1",
+  "pytest-asyncio>=1.1.0"
 ]
+
+# If you want to ship a test extra instead, keep your section below and
+# install with: uv run --extra test pytest
+# [project.optional-dependencies]
+# test = ["pytest>=7.4.0", "pytest-cov>=4.1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -26,3 +34,8 @@ python_functions = "test_*"
 python_classes = "Test*"
 addopts = "-v --cov=app --cov-report=term-missing"
 asyncio_mode = "auto"
+
+# Uncomment if you want the project to be installable / expose scripts
+# [build-system]
+# requires = ["setuptools>=61"]
+# build-backend = "setuptools.build_meta"

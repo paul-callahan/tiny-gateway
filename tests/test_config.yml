@@ -1,0 +1,38 @@
+tenants:
+  - id: test-tenant
+
+proxy:
+  - endpoint: /api/v1/test
+    target: http://test-server/
+    rewrite: ""
+    change_origin: true
+
+users:
+  - name: testuser
+    password: testpass  # Using plaintext for testing
+    roles: [admin]
+    tenant_id: test-tenant
+    
+  - name: editor_user
+    password: editorpass  # Using plaintext for testing
+    roles: [editor]
+    tenant_id: test-tenant
+    
+  - name: viewer_user
+    password: viewerpass  # Using plaintext for testing
+    roles: [viewer]
+    tenant_id: test-tenant
+
+roles:
+  admin:
+    - resource: "tenants"
+      actions: [read, write, create, delete]
+  tenant_admin:
+    - resource: "users"
+      actions: [read, write, create, delete]
+  editor:
+    - resource: graphs
+      actions: [create, read, update, delete, execute]
+  viewer:
+    - resource: graphs
+      actions: [read]

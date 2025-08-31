@@ -1,0 +1,37 @@
+tenants:
+  - id: evil-corp
+  - id: wayland-yutani
+
+proxy:
+      - endpoint: /api/v1/graph
+        target: http://graph-composer:8000/
+        rewrite: ""
+        change_origin: true
+
+users:
+    - name: joe
+      password: x
+      roles: [ tenant_admin, editor]
+      tenant_id: evil-corp
+    - name: y
+      password: z
+      roles: [editor]
+      tenant_id: wayland-yutani
+
+roles:
+  admin:
+    - resource: "tenants"
+      actions: [read, write, create, delete]
+  tenant_admin:
+    - resource: "users"
+      actions: [ read, write, create, delete ]
+  editor:
+    - resource: graphs
+      actions: [create, read, update, delete, execute]
+  viewer:
+    - resource: graphs
+      actions: [read]
+
+
+
+

@@ -1,0 +1,22 @@
+# Get a token
+POST http://localhost:8000/token
+Content-Type: application/x-www-form-urlencoded
+
+username=joe&password=x
+
+###
+
+# Get current user info (requires authentication)
+GET http://localhost:8000/me
+Authorization: Bearer <paste_token_here>
+
+###
+
+# Access a proxied endpoint (e.g., /api/v1/graph)
+GET http://localhost:8000/api/v1/graph
+Authorization: Bearer <paste_token_here>
+
+###
+
+# Access the root endpoint
+GET http://localhost:8000/
