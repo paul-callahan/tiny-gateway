@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 
 class Token(BaseModel):
     access_token: str
@@ -10,15 +10,6 @@ class TokenPayload(BaseModel):
     roles: List[str] = []
     tenant_id: str
 
-class User(BaseModel):
-    username: str
-    password: str
-    roles: List[str] = []
-    tenant_id: str
-
-class UserInDB(User):
-    """User model for database representation"""
-    pass
 
 class UserResponse(BaseModel):
     """User model for API responses (excludes password)"""
@@ -26,10 +17,3 @@ class UserResponse(BaseModel):
     roles: List[str] = []
     tenant_id: str
 
-class ProxyRequest(BaseModel):
-    method: str
-    url: str
-    headers: dict = {}
-    params: dict = {}
-    data: Optional[dict] = None
-    json_data: Optional[dict] = None

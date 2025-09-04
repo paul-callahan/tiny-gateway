@@ -1,17 +1,78 @@
+import pytest
 from fastapi import status
 
-def test_get_current_user(client, auth_headers, test_config):
-    """Test getting current user information"""
-    test_user = test_config.users[0]
-    response = client.get("/api/v1/users/me", headers=auth_headers)
-    
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert data["username"] == test_user.name
-    assert set(data["roles"]) == set(test_user.roles)
-    assert data["tenant_id"] == test_user.tenant_id
+from tests.constants import TestConstants
+from tests.factories import TestDataFactory
 
-def test_get_current_user_unauthorized(client):
-    """Test getting current user without authentication"""
-    response = client.get("/api/v1/users/me")
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+class TestUsers:
+    """Test suite for user-related endpoints."""
+    
+    def test_get_current_user_success(self, client, auth_headers, test_config):
+        """Test getting current user information with valid authentication."""
+        test_user = test_config.users[0]
+        
+        response = client.get(
+            TestConstants.ENDPOINTS["USER_ME"],
+            headers=auth_headers
+        )
+        
+        assert response.status_code == status.HTTP_200_OK, \
+            f"Failed to get current user, status: {response.status_code}, response: {response.text}"
+        
+        data = response.json()
+        assert data["username"] == test_user.name, \
+            f"Expected username '{test_user.name}', got '{data.get('username')}'"
+        assert set(data["roles"]) == set(test_user.roles), \
+            f"Expected roles {test_user.roles}, got {data.get('roles')}"
+        assert data["tenant_id"] == test_user.tenant_id, \
+            f"Expected tenant_id '{test_user.tenant_id}', got '{data.get('tenant_id')}'"
+
+    def test_get_current_user_unauthorized(self, client):
+        """Test getting current user without authentication."""
+        response = client.get(TestConstants.ENDPOINTS["USER_ME"])
+        
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
+            f"Expected 401 for unauthorized request, got {response.status_code}"
+        
+        response_data = response.json()
+        assert "detail" in response_data, \
+            "Error response should contain 'detail' field"
+
+    def test_get_current_user_invalid_token(self, client):
+        """Test getting current user with invalid token."""
+        invalid_headers = {"Authorization": "Bearer invalid_token"}
+        
+        response = client.get(
+            TestConstants.ENDPOINTS["USER_ME"],
+            headers=invalid_headers
+        )
+        
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
+            f"Expected 401 for invalid token, got {response.status_code}"
+
+    def test_get_current_user_malformed_header(self, client):
+        """Test getting current user with malformed authorization header."""
+        malformed_headers = {"Authorization": "InvalidFormat token"}
+        
+        response = client.get(
+            TestConstants.ENDPOINTS["USER_ME"],
+            headers=malformed_headers
+        )
+        
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
+            f"Expected 401 for malformed auth header, got {response.status_code}"
+
+    def test_get_current_user_expired_token(self, client):
+        """Test getting current user with expired token."""
+        # Create an expired token
+        expired_token = TestDataFactory.create_jwt_token(expires_minutes=-1)
+        expired_headers = TestDataFactory.create_auth_headers(expired_token)
+        
+        response = client.get(
+            TestConstants.ENDPOINTS["USER_ME"],
+            headers=expired_headers
+        )
+        
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
+            f"Expected 401 for expired token, got {response.status_code}"

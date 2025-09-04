@@ -1,13 +1,11 @@
 import pytest
-from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock, AsyncMock
-from jose import jwt
 
 from app.core.middleware import ProxyMiddleware
 from app.models.config_models import AppConfig, ProxyConfig, User, Permission
-from app.config.settings import settings
+from tests.factories import TestDataFactory
 
 @pytest.fixture
 def test_app():
@@ -92,31 +90,17 @@ def test_proxy_middleware_path_preservation(test_app, mock_async_client, target_
         )
     ]
     
-    # Create test client with middleware
+    # Create test client with middleware, passing the mock client
     test_app.add_middleware(
         ProxyMiddleware,
-        config=AppConfig(proxy=proxy_config)
+        config=AppConfig(proxy=proxy_config, users=[], roles={}, tenants=[]),
+        client=mock_async_client
     )
     
     client = TestClient(test_app)
     
-    # Create a test JWT token
-    from datetime import datetime, timedelta
-    from jose import jwt
-    
-    # Create token data
-    token_data = {
-        "sub": "testuser",
-        "tenant_id": "test-tenant",
-        "exp": datetime.utcnow() + timedelta(minutes=30)
-    }
-    
-    # Generate token
-    token = jwt.encode(
-        token_data,
-        settings.SECRET_KEY,
-        algorithm="HS256"
-    )
+    # Create a test JWT token using factory
+    token = TestDataFactory.create_jwt_token()
     
     # Make request to proxied endpoint with auth header
     response = client.get(
@@ -139,10 +123,11 @@ def test_proxy_middleware_path_preservation(test_app, mock_async_client, target_
     assert response.json() == {"data": "test data"}
 
 def test_non_proxied_endpoint(test_app, proxy_config, mock_async_client):
-    # Configure the test app with middleware and test user
+    # Configure the test app with middleware and test config, passing the mock client
     test_app.add_middleware(
         ProxyMiddleware,
-        config=AppConfig.from_dict(proxy_config)
+        config=AppConfig(**proxy_config),
+        client=mock_async_client
     )
     
     client = TestClient(test_app)

@@ -1,0 +1,59 @@
+services:
+  tiny-gateway:
+    build: .
+    container_name: tiny-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      # Path to config file (can be overridden)
+      - CONFIG_FILE=/app/config/config.yml
+      # JWT secret key (should be overridden in production-like environments)
+      - SECRET_KEY=dev-secret-key-change-me
+      # Token expiration time in minutes
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Mount config directory from host
+      - ./config/:/app/config/:ro
+    networks:
+      - gateway-network
+    # Add health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Restart policy for development
+    restart: unless-stopped
+
+  # Example backend service that the gateway might proxy to
+  # Uncomment and modify based on your actual backend services
+  # backend-service:
+  #   image: your-backend-image:latest
+  #   container_name: backend-service
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - gateway-network
+  #   environment:
+  #     - NODE_ENV=development
+
+  # Example: If you're using the graph-composer mentioned in config.yml
+  # graph-composer:
+  #   image: graph-composer:latest
+  #   container_name: graph-composer
+  #   ports:
+  #     - "8001:8000"
+  #   networks:
+  #     - gateway-network
+
+networks:
+  gateway-network:
+    driver: bridge
+    name: gateway-network
+
+# Optional: Add volumes for persistent data if needed
+# volumes:
+#   gateway-data:

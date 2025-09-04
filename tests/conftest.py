@@ -9,7 +9,7 @@ import yaml
 @pytest.fixture(scope="session")
 def test_config():
     """Load test configuration from config.yml"""
-    with open("tests/test_config.yml", "r") as f:
+    with open("tests/fixtures/test_config.yml", "r") as f:
         config_data = yaml.safe_load(f)
     return AppConfig.from_dict(config_data)
 
@@ -38,14 +38,24 @@ def client(test_config):
 
 @pytest.fixture(scope="module")
 def auth_headers(client, test_config):
-    """Get authentication headers for a test user"""
+    """Get authentication headers for a test user."""
+    from tests.constants import TestConstants
+    from tests.factories import TestDataFactory
+    
     test_user = test_config.users[0]
-    response = client.post(
-        "/api/v1/auth/login",
-        data={"username": test_user.name, "password": test_user.password},
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    login_data = TestDataFactory.create_login_data(
+        username=test_user.name,
+        password=test_user.password
     )
+    
+    response = client.post(
+        TestConstants.ENDPOINTS["LOGIN"],
+        data=login_data,
+        headers=TestConstants.HEADERS["CONTENT_TYPE_FORM"]
+    )
+    
     response_data = response.json()
     if "access_token" not in response_data:
         raise ValueError(f"Failed to get access token. Response: {response_data}")
-    return {"Authorization": f"Bearer {response_data['access_token']}"}
+    
+    return TestDataFactory.create_auth_headers(response_data["access_token"])

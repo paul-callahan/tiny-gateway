@@ -1,61 +1,40 @@
-from typing import Generator
-import yaml
-from fastapi import Depends, HTTPException, status
-
+from fastapi import Depends, Request
 from app.core.constants import oauth2_scheme
 from app.models.config_models import AppConfig
 from app.models.schemas import TokenPayload
 
-def get_config() -> AppConfig:
-    """Load and return the application configuration."""
-    try:
-        with open("config.yml", "r") as f:
-            config_data = yaml.safe_load(f)
-        return AppConfig.from_dict(config_data)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load configuration: {str(e)}"
-        )
+def get_config(request: Request) -> AppConfig:
+    """
+    Get the application configuration from app state.
+    
+    Configuration is loaded once at startup and stored in app.state,
+    eliminating the need for file I/O on every request.
+    
+    Args:
+        request: FastAPI request object containing app state
+        
+    Returns:
+        AppConfig: The application configuration
+    """
+    return request.app.state.config
 
-async def get_current_active_user(
+async def get_current_user_dependency(
     token: str = Depends(oauth2_scheme),
     config: AppConfig = Depends(get_config)
 ) -> TokenPayload:
-    """Dependency to get the current active user.
+    """
+    FastAPI dependency to get the current user from JWT token.
     
     Args:
-        token: The JWT token from the Authorization header
-        config: The application configuration
+        token: JWT token from Authorization header
+        config: Application configuration from app state
         
     Returns:
-        TokenPayload: The token payload containing user information
-        
-    Raises:
-        HTTPException: If the token is invalid or the user is not found
+        TokenPayload: The validated token payload containing user information
     """
+    # Import here to avoid circular import
     from app.core.security import get_current_user
-    
-    try:
-        # Get the token payload which includes roles and tenants
-        token_data = await get_current_user(token, config)
-        
-        # Get the user from config to ensure they still exist
-        user = next((u for u in config.users if u.name == token_data.sub), None)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-            
-        # Return the full token data including roles and tenants
-        return token_data
-        
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    return await get_current_user(token, config)
+
+# Alias for backwards compatibility
+get_current_active_user = get_current_user_dependency
