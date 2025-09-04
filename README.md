@@ -1,29 +1,44 @@
-# Simple API Gateway (Development Only)
+# Tiny Gateway
 
-A lightweight multi-tenant API gateway service, designed exclusively for development and testing purposes. This service provides authentication, authorization, and request routing for microservices in a development environment, especially docker-compose environments.
+A lightweight API gateway for multi-tenant microservice development environments. Handles JWT authentication, role-based authorization, and request proxying with tenant isolation.
 
-## ⚠️ Important Notice
-This service is **not intended for production use**. It's designed specifically for development and testing environments. Do not deploy this to production.
+```mermaid
+graph  LR
+subgraph "Docker" 
+    TinyGateway(Tiny Gateway)
+    UIServer[Dev UI Server]
 
-## Features
+    subgraph "Microservices"
+    Service1
+    Service2
+    end
 
-- 🔐 JWT-based authentication
-- 👥 Role-based access control (RBAC)
-- 🏢 Multi-tenant architecture with tenant isolation
-- 🔄 Request proxying to backend services
-- 🏗️ Simple YAML-based configuration
+end
+
+subgraph Browser
+App
+end
+
+App <--> TinyGateway
+TinyGateway -- proxy <--> UIServer
+TinyGateway -- proxy <--> Service1
+TinyGateway -- proxy <--> Service2
+```
+
+## ⚠️ Development Use Only
+This service is designed exclusively for development and testing environments. Do not deploy to production.
+
+## What It Does
+
+- Authenticates users via JWT tokens containing tenant and role information
+- Enables role-based access control (RBAC) 
+- Proxies authenticated requests to backend services with tenant context
+- Maintains tenant isolation across all operations
+- Configured entirely through YAML files
 
 ## Prerequisites
 
-- Python 3.8+
-- pip (Python package manager)
-- Virtual environment (recommended)
-
-## Environment Variables
-
-- `CONFIG_FILE`: Path to the configuration file (default: `config.yml` in the project root)
-- `SECRET_KEY`: Secret key for JWT token signing (default: a development key)
-- `ACCESS_TOKEN_EXPIRE_MINUTES`: JWT token expiration time in minutes (default: 30)
+- Docker and Docker Compose
 
 ## Getting Started
 
@@ -33,35 +48,20 @@ This service is **not intended for production use**. It's designed specifically 
    cd tiny-gateway
    ```
 
-2. **Set up a virtual environment**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+2. **Configure the service**
+   Edit `config/config.yml` to set up your routes, users, and permissions.
 
-3. **Install dependencies**
+3. **Start the gateway**
    ```bash
-   pip install -e .
+   docker-compose up --build
    ```
-
-4. **Configure the service**
-   Edit the `config.yml` file to set up your routes, users, and permissions.
-
-5. **Run the service**
-   ```bash
-   uvicorn main:app --reload
-   ```
-   The API will be available at `http://localhost:8000`
+   
+   The gateway will be available at `http://localhost:8000`. The test login page is available at `/test_login`.
 
 ## Multi-Tenant Architecture
 
 The API Gateway supports multi-tenancy, where each user is associated with a single tenant. This provides logical isolation between different tenants' data and operations.
 
-### Key Concepts
-
-- **Tenant**: A logical group of users and resources
-- **Tenant ID**: Unique identifier for each tenant
-- **Tenant Isolation**: Users can only access resources within their assigned tenant
 
 ### Configuration
 
@@ -119,6 +119,14 @@ Example JWT payload:
 }
 ```
 
+### HTTP Headers to Backend Services
+
+The gateway forwards tenant information to backend services via HTTP headers:
+
+- **`X-Tenant-ID`**: Contains the tenant ID from the JWT token, enabling backend services to enforce tenant isolation
+
+Note: Role information is currently only available in the JWT token itself. Backend services should decode the JWT to access role information for authorization decisions.
+
 Example configuration:
 
 ```yaml
@@ -140,6 +148,17 @@ proxy:
     change_origin: true
 ```
 
+## Configuration
+
+The gateway is configured through `config/config.yml`. Key sections:
+
+- **tenants**: Define tenant IDs
+- **users**: Define users with passwords, roles, and tenant assignments  
+- **roles**: Define permissions for resources and actions
+- **proxy**: Define endpoint-to-backend routing rules
+
+See the example configuration in `config/config.yml` for the complete structure.
+
 ## API Endpoints
 
 - `POST /api/v1/auth/login` - Obtain JWT token with tenant context
@@ -147,13 +166,43 @@ proxy:
 
 ## Running Tests
 
+Using the Makefile (recommended):
 ```bash
-pytest tests/ -v
+make test-unit         # Run unit tests only
+make test-integration  # Run integration tests only  
+make test-all          # Run all tests
 ```
 
-## Development
+Or with Docker:
+```bash
+docker-compose exec tiny-gateway pytest tests/ -v
+```
 
-### Project Structure
+## Development Without Docker
+
+If you prefer to run without Docker:
+
+### Prerequisites
+- Python 3.13+
+- uv package manager (recommended) or pip
+
+### Setup
+1. Install dependencies:
+   ```bash
+   uv sync
+   ```
+
+2. Run the service:
+   ```bash
+   uv run uvicorn main:app --reload
+   ```
+
+### Environment Variables
+- `CONFIG_FILE`: Path to configuration file (default: `config/config.yml`)
+- `SECRET_KEY`: JWT signing key (default: development key)  
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: Token expiration time (default: 30)
+
+## Project Structure
 
 ```
 .
@@ -163,18 +212,6 @@ pytest tests/ -v
 │   ├── models/               # Data models
 │   └── config/               # Configuration
 ├── tests/                    # Test files
-├── config.yml                # Main configuration
+├── config/                   # Configuration files
 └── main.py                  # Application entry point
 ```
-
-### Dependencies
-
-- FastAPI - Web framework
-- Uvicorn - ASGI server
-- Pydantic - Data validation
-- PyYAML - YAML configuration parsing
-- pytest - Testing framework
-
-## License
-
-This project is for development use only. See LICENSE for more information.

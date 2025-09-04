@@ -1,3 +1,6 @@
+# Test configuration - not a default config
+default_config: false
+
 tenants:
   - id: test-tenant
 
