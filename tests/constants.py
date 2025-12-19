@@ -16,6 +16,9 @@ class TestConstants:
     
     VIEWER_USER = "viewer_user"
     VIEWER_PASSWORD = "viewerpass"
+
+    LIMITED_USER = "limited_user"
+    LIMITED_PASSWORD = "limitedpass"
     
     # API endpoints
     ENDPOINTS = {
@@ -35,4 +38,5 @@ class TestConstants:
         "ADMIN": "admin",
         "EDITOR": "editor", 
         "VIEWER": "viewer",
+        "LIMITED": "limited",
     }

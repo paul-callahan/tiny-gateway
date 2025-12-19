@@ -36,5 +36,23 @@ async def get_current_user_dependency(
     from app.core.security import get_current_user
     return await get_current_user(token, config)
 
+def require_permission(resource: str, action: str):
+    """
+    Factory for a dependency that enforces RBAC permissions.
+
+    Args:
+        resource: Resource name to authorize
+        action: Action to authorize
+    """
+    async def _permission_dependency(
+        current_user: TokenPayload = Depends(get_current_user_dependency),
+        config: AppConfig = Depends(get_config)
+    ) -> TokenPayload:
+        from app.core.security import authorize_request
+        authorize_request(current_user.roles, resource, action, config)
+        return current_user
+
+    return _permission_dependency
+
 # Alias for backwards compatibility
 get_current_active_user = get_current_user_dependency

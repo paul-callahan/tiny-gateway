@@ -9,6 +9,8 @@ proxy:
     target: http://test-server/
     rewrite: ""
     change_origin: true
+    required_resource: graphs
+    required_actions: [read]
 
 users:
   - name: testuser
@@ -25,17 +27,31 @@ users:
     password: viewerpass  # Using plaintext for testing
     roles: [viewer]
     tenant_id: test-tenant
+    
+  - name: limited_user
+    password: limitedpass  # Using plaintext for testing
+    roles: [limited]
+    tenant_id: test-tenant
 
 roles:
   admin:
     - resource: "tenants"
       actions: [read, write, create, delete]
+    - resource: "users"
+      actions: [read]
   tenant_admin:
     - resource: "users"
       actions: [read, write, create, delete]
   editor:
     - resource: graphs
       actions: [create, read, update, delete, execute]
+    - resource: "users"
+      actions: [read]
   viewer:
+    - resource: graphs
+      actions: [read]
+    - resource: "users"
+      actions: [read]
+  limited:
     - resource: graphs
       actions: [read]

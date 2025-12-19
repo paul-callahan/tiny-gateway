@@ -1,6 +1,6 @@
 import logging
 from pydantic import BaseModel, Field, ValidationError
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,8 @@ class ProxyConfig(BaseModel):
     target: str
     rewrite: str = ""
     change_origin: bool = False
+    required_resource: Optional[str] = None
+    required_actions: List[str] = Field(default_factory=list)
 
 class User(BaseModel):
     name: str

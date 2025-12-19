@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, UTC
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Iterable
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -15,6 +15,39 @@ from .constants import oauth2_scheme
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _permission_allows(resource: str, action: str, permission_resource: str, permission_actions: Iterable[str]) -> bool:
+    """Check if a permission allows the requested resource/action."""
+    resource_match = permission_resource == "*" or permission_resource == resource
+    action_match = "*" in permission_actions or action in permission_actions
+    return resource_match and action_match
+
+def authorize_request(user_roles: Iterable[str], resource: str, action: str, config: AppConfig) -> None:
+    """
+    Authorize a request based on user roles and configured permissions.
+
+    Args:
+        user_roles: Roles associated with the user
+        resource: Resource being accessed
+        action: Action being performed
+        config: Application configuration containing role permissions
+
+    Raises:
+        HTTPException: If the user lacks permission for the requested resource/action
+    """
+    if not user_roles:
+        logger.warning("Authorization failed: no roles provided for resource '%s' action '%s'", resource, action)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    for role in user_roles:
+        permissions = config.roles.get(role, [])
+        for permission in permissions:
+            if _permission_allows(resource, action, permission.resource, permission.actions):
+                logger.debug("Authorization granted for role '%s' on %s:%s", role, resource, action)
+                return
+
+    logger.warning("Authorization denied for roles %s on %s:%s", list(user_roles), resource, action)
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a hashed password."""
