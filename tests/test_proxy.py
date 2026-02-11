@@ -154,3 +154,227 @@ def test_non_proxied_endpoint(test_app, proxy_config, mock_async_client):
     # Verify the request was handled by the test endpoint
     assert response.status_code == 200
     assert response.json() == {"message": "test"}
+
+
+def test_proxy_route_precedence_prefers_most_specific_endpoint(test_app, mock_async_client):
+    proxy_routes = [
+        ProxyConfig(
+            endpoint="/api/v1",
+            target="http://broad-target/",
+            rewrite="",
+            change_origin=True
+        ),
+        ProxyConfig(
+            endpoint="/api/v1/graph",
+            target="http://specific-target/",
+            rewrite="",
+            change_origin=True
+        ),
+    ]
+
+    test_user = User(
+        name="testuser",
+        password="testpassword",
+        tenant_id="test-tenant",
+        roles=["admin"]
+    )
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=proxy_routes,
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
+        client=mock_async_client
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token()
+
+    response = client.get(
+        "/api/v1/graph/items",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 200
+    _, kwargs = mock_async_client.request.call_args
+    assert kwargs["url"] == "http://specific-target/api/v1/graph/items"
+
+
+def test_proxy_endpoint_matching_respects_path_boundaries(test_app, mock_async_client):
+    proxy_routes = [
+        ProxyConfig(
+            endpoint="/api/v1/graph",
+            target="http://graph-target/",
+            rewrite="",
+            change_origin=True
+        )
+    ]
+
+    test_user = User(
+        name="testuser",
+        password="testpassword",
+        tenant_id="test-tenant",
+        roles=["admin"]
+    )
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=proxy_routes,
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
+        client=mock_async_client
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token()
+
+    response = client.get(
+        "/api/v1/graphical/items",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 404
+    mock_async_client.request.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "method,permission_actions,expected_allowed",
+    [
+        ("HEAD", ["read"], True),
+        ("OPTIONS", ["read"], True),
+        ("PATCH", ["update"], True),
+        ("PATCH", ["write"], True),
+        ("PATCH", ["read"], False),
+        ("DELETE", ["delete"], True),
+        ("DELETE", ["write"], True),
+        ("DELETE", ["read"], False),
+    ]
+)
+def test_proxy_method_action_mapping_edges(method, permission_actions, expected_allowed):
+    app = FastAPI()
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        resource=None,
+        rewrite="",
+        change_origin=True
+    )
+    test_user = User(name="testuser", password="testpassword", tenant_id="test-tenant", roles=["role-a"])
+    permission = Permission(resource="graph", actions=permission_actions)
+
+    middleware = ProxyMiddleware(
+        app=app,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"role-a": [permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
+        client=MagicMock()
+    )
+
+    assert middleware._is_authorized_for_proxy(["role-a"], method, proxy_config) == expected_allowed
+
+
+def test_proxy_resource_override_used_for_rbac():
+    app = FastAPI()
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        resource="data",
+        rewrite="",
+        change_origin=True
+    )
+    test_user = User(name="testuser", password="testpassword", tenant_id="test-tenant", roles=["role-a"])
+    permission = Permission(resource="data", actions=["read"])
+
+    middleware = ProxyMiddleware(
+        app=app,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"role-a": [permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
+        client=MagicMock()
+    )
+
+    assert middleware._is_authorized_for_proxy(["role-a"], "GET", proxy_config) is True
+
+
+def test_proxy_resource_override_enforced_in_request_flow(test_app, mock_async_client):
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        resource="data",
+        rewrite="",
+        change_origin=True
+    )
+    test_user = User(
+        name="testuser",
+        password="testpassword",
+        tenant_id="test-tenant",
+        roles=["role-a"]
+    )
+    permission = Permission(resource="data", actions=["read"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"role-a": [permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
+        client=mock_async_client
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token(roles=["role-a"])
+    response = client.get("/api/v1/graph/items", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    mock_async_client.request.assert_called_once()
+
+
+def test_proxy_resource_override_denies_when_permission_resource_differs(test_app, mock_async_client):
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        resource="data",
+        rewrite="",
+        change_origin=True
+    )
+    test_user = User(
+        name="testuser",
+        password="testpassword",
+        tenant_id="test-tenant",
+        roles=["role-a"]
+    )
+    permission = Permission(resource="graph", actions=["read"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"role-a": [permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
+        client=mock_async_client
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token(roles=["role-a"])
+    response = client.get("/api/v1/graph/items", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 403
+    mock_async_client.request.assert_not_called()
