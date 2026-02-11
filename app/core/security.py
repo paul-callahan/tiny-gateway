@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, UTC
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -104,6 +104,79 @@ def create_access_token(
     )
     return encoded_jwt
 
+
+def validate_token_and_get_payload(token: str, config: AppConfig) -> TokenPayload:
+    """
+    Validate JWT claims and bind token identity to configured user state.
+
+    This enforces tenant and role binding by requiring that token claims match
+    the current user entry in configuration.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+    except JWTError as e:
+        logger.debug("JWT validation error: %s", str(e))
+        raise credentials_exception
+    except Exception as e:
+        logger.error("Unexpected error during JWT validation: %s", str(e))
+        raise credentials_exception
+
+    username: str = payload.get("sub")
+    if not username:
+        logger.debug("JWT token missing 'sub' field")
+        raise credentials_exception
+
+    tenant_id: str = payload.get("tenant_id", "")
+    if not tenant_id:
+        logger.debug("JWT token missing 'tenant_id' field")
+        raise credentials_exception
+
+    token_roles: Any = payload.get("roles", [])
+    if not isinstance(token_roles, list) or not all(isinstance(role, str) for role in token_roles):
+        logger.debug("JWT token has invalid 'roles' format")
+        raise credentials_exception
+
+    # Verify user still exists in configuration and claims are bound to it.
+    user = get_user(username=username, config=config)
+    if user is None:
+        logger.debug("User '%s' from token not found in configuration", username)
+        raise credentials_exception
+
+    if tenant_id != user.tenant_id:
+        logger.warning(
+            "Token tenant mismatch for user '%s': token tenant '%s' does not match configured tenant '%s'",
+            username,
+            tenant_id,
+            user.tenant_id
+        )
+        raise credentials_exception
+
+    configured_roles: List[str] = list(user.roles)
+    if set(token_roles) != set(configured_roles):
+        logger.warning(
+            "Token role mismatch for user '%s': token roles %s do not match configured roles %s",
+            username,
+            sorted(token_roles),
+            sorted(configured_roles)
+        )
+        raise credentials_exception
+
+    return TokenPayload(
+        sub=user.name,
+        roles=configured_roles,
+        tenant_id=user.tenant_id
+    )
+
 async def get_current_user(
     token: str,
     config: AppConfig
@@ -121,47 +194,7 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    try:
-        payload = jwt.decode(
-            token, 
-            settings.SECRET_KEY, 
-            algorithms=[settings.ALGORITHM]
-        )
-    except JWTError as e:
-        logger.debug("JWT validation error: %s", str(e))
-        raise credentials_exception
-    except Exception as e:
-        logger.error("Unexpected error during JWT validation: %s", str(e))
-        raise credentials_exception
-    
-    # Extract and validate token data
-    username: str = payload.get("sub")
-    if not username:
-        logger.debug("JWT token missing 'sub' field")
-        raise credentials_exception
-    
-    tenant_id = payload.get("tenant_id", "")
-    if not tenant_id:
-        logger.debug("JWT token missing 'tenant_id' field")
-        raise credentials_exception
-    
-    # Verify user still exists in configuration
-    user = get_user(username=username, config=config)
-    if user is None:
-        logger.debug("User '%s' from token not found in configuration", username)
-        raise credentials_exception
-    
-    return TokenPayload(
-        sub=username,
-        roles=payload.get("roles", []),
-        tenant_id=tenant_id
-    )
+    return validate_token_and_get_payload(token, config)
 
 async def get_current_active_user(
     current_user: TokenPayload = Depends(get_current_user)

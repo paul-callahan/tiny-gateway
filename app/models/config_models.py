@@ -10,6 +10,7 @@ class Tenant(BaseModel):
 class ProxyConfig(BaseModel):
     endpoint: str
     target: str
+    resource: str | None = None
     rewrite: str = ""
     change_origin: bool = False
 

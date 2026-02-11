@@ -1,12 +1,13 @@
 import json
 import logging
 import httpx
-from typing import Dict, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Set
 from starlette.requests import Request as StarletteRequest
-from jose import JWTError, jwt
+from fastapi import HTTPException
 
 from app.models.config_models import AppConfig, ProxyConfig
-from app.config.settings import settings
+from app.models.schemas import TokenPayload
+from app.core.security import validate_token_and_get_payload
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,15 @@ class ProxyMiddleware:
     DEFAULT_MAX_KEEPALIVE = 100
     DEFAULT_MAX_CONNECTIONS = 1000
     DEFAULT_KEEPALIVE_EXPIRY = 60.0
+    METHOD_ACTION_ALIASES = {
+        "GET": {"read"},
+        "HEAD": {"read"},
+        "OPTIONS": {"read"},
+        "POST": {"create", "write", "execute"},
+        "PUT": {"update", "write"},
+        "PATCH": {"update", "write"},
+        "DELETE": {"delete", "write"},
+    }
     
     def __init__(self, app, config: AppConfig, client: Optional[httpx.AsyncClient] = None):
         self.app = app
@@ -79,10 +89,9 @@ class ProxyMiddleware:
             'more_body': False
         })
     
-    async def _authenticate_request(self, headers: Dict[str, str]) -> Tuple[str, str, list]:
+    async def _authenticate_request(self, headers: Dict[str, str]) -> TokenPayload:
         """
-        Authenticate the request and return authentication details.
-        Returns tuple of (tenant_id, username, roles) if valid.
+        Authenticate request and return canonical user payload bound to config.
         """
         auth_header = headers.get('authorization', '').split()
         if len(auth_header) != 2 or auth_header[0].lower() != 'bearer':
@@ -90,25 +99,67 @@ class ProxyMiddleware:
 
         try:
             token = auth_header[1]
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
-            )
-            
-            tenant_id = payload.get('tenant_id')
-            username = payload.get('sub')
-            roles = payload.get('roles', [])
-            
-            if not tenant_id:
-                raise JWTError("Missing tenant_id in token")
-            if not username:
-                raise JWTError("Missing username in token")
-                
-            return tenant_id, username, roles
-            
-        except JWTError as e:
-            raise ValueError(f"Invalid or expired token: {str(e)}")
+            return validate_token_and_get_payload(token, self.config)
+        except HTTPException:
+            raise ValueError("Invalid or expired token")
+
+    @staticmethod
+    def _normalize_resource(resource: str) -> str:
+        """Normalize resource identifiers for comparison."""
+        normalized = "".join(char for char in resource.lower() if char.isalnum() or char in {"-", "_"})
+        return normalized.strip("-_")
+
+    @classmethod
+    def _resource_matches(cls, permission_resource: str, request_resource: str) -> bool:
+        """Compare resources with simple singular/plural tolerance."""
+        if permission_resource == "*":
+            return True
+
+        permission = cls._normalize_resource(permission_resource)
+        requested = cls._normalize_resource(request_resource)
+
+        if not permission or not requested:
+            return False
+
+        if permission == requested:
+            return True
+
+        if permission.endswith("s") and permission[:-1] == requested:
+            return True
+
+        if requested.endswith("s") and requested[:-1] == permission:
+            return True
+
+        return False
+
+    @staticmethod
+    def _get_proxy_resource(proxy_config: ProxyConfig) -> str:
+        """Get resource name for RBAC checks from proxy config or endpoint."""
+        if proxy_config.resource:
+            return proxy_config.resource
+
+        endpoint_parts = [part for part in proxy_config.endpoint.strip("/").split("/") if part]
+        return endpoint_parts[-1] if endpoint_parts else "resource"
+
+    def _is_authorized_for_proxy(self, roles: list[str], method: str, proxy_config: ProxyConfig) -> bool:
+        """Check whether any role grants permission for resource + action."""
+        if not roles:
+            return False
+
+        required_actions: Set[str] = self.METHOD_ACTION_ALIASES.get(method.upper(), {"write"})
+        resource = self._get_proxy_resource(proxy_config)
+
+        for role in roles:
+            permissions = self.config.roles.get(role, [])
+            for permission in permissions:
+                if not self._resource_matches(permission.resource, resource):
+                    continue
+
+                allowed_actions = {action.lower() for action in permission.actions}
+                if "*" in allowed_actions or allowed_actions.intersection(required_actions):
+                    return True
+
+        return False
     
     def _prepare_proxy_headers(self, request_headers: Dict[str, str], 
                                proxy_config: ProxyConfig, tenant_id: str) -> Dict[str, str]:
@@ -178,11 +229,16 @@ class ProxyMiddleware:
 
         try:
             # Authenticate the request
-            tenant_id, username, roles = await self._authenticate_request(dict(request.headers))
+            token_payload = await self._authenticate_request(dict(request.headers))
+
+            # Enforce RBAC before proxying to upstream services
+            if not self._is_authorized_for_proxy(token_payload.roles, request.method, proxy_config):
+                await self._send_error_response(send, 403, "Insufficient role permissions for proxied resource")
+                return
             
             # Prepare headers for proxying
             headers = self._prepare_proxy_headers(
-                dict(request.headers), proxy_config, tenant_id
+                dict(request.headers), proxy_config, token_payload.tenant_id
             )
             
             # Debug log the proxied request details
@@ -191,9 +247,9 @@ class ProxyMiddleware:
                 "Proxying request - Endpoint: %s, Target: %s, User: %s, Tenant: %s, Roles: %s, Headers: X-Tenant-ID=%s",
                 proxy_config.endpoint,
                 target_url,
-                username,
-                tenant_id,
-                roles,
+                token_payload.sub,
+                token_payload.tenant_id,
+                token_payload.roles,
                 headers.get('X-Tenant-ID', 'Not Set')
             )
             
