@@ -194,12 +194,51 @@ class ProxyMiddleware:
         headers['X-Tenant-ID'] = tenant_id
         
         return headers
+
+    @staticmethod
+    def _normalize_path_prefix(path_value: str) -> str:
+        """Normalize configured endpoint/rewrite prefixes."""
+        stripped = path_value.strip()
+        if not stripped or stripped == "/":
+            return "/"
+        return f"/{stripped.strip('/')}"
+
+    @classmethod
+    def _rewrite_target_path(cls, request_path: str, proxy_config: ProxyConfig) -> str:
+        """Rewrite request path by replacing endpoint prefix with configured rewrite prefix."""
+        endpoint_prefix = cls._normalize_path_prefix(proxy_config.endpoint)
+        rewrite_prefix = endpoint_prefix
+        if proxy_config.rewrite:
+            rewrite_prefix = cls._normalize_path_prefix(proxy_config.rewrite)
+
+        if endpoint_prefix == "/":
+            suffix = request_path
+        elif request_path == endpoint_prefix:
+            suffix = ""
+        else:
+            suffix = request_path[len(endpoint_prefix):]
+
+        if not suffix:
+            return rewrite_prefix
+
+        if rewrite_prefix == "/":
+            return suffix if suffix.startswith("/") else f"/{suffix}"
+
+        if suffix.startswith("/"):
+            return f"{rewrite_prefix}{suffix}"
+        return f"{rewrite_prefix}/{suffix}"
+
+    @classmethod
+    def _build_target_url(cls, request_path: str, proxy_config: ProxyConfig) -> str:
+        """Build full target URL including rewrite behavior."""
+        target_base = proxy_config.target.rstrip("/")
+        rewritten_path = cls._rewrite_target_path(request_path, proxy_config)
+        return f"{target_base}{rewritten_path}"
     
     async def _proxy_request(self, request: StarletteRequest, proxy_config: ProxyConfig, 
                             headers: Dict[str, str]) -> httpx.Response:
         """Forward the request to the target service."""
-        target_base = proxy_config.target.rstrip('/')
-        target_url = f"{target_base}{request.url.path}"
+        target_url = self._build_target_url(request.url.path, proxy_config)
         
         body = await request.body()
         
@@ -261,7 +300,7 @@ class ProxyMiddleware:
             )
             
             # Debug log the proxied request details
-            target_url = f"{proxy_config.target.rstrip('/')}{request.url.path}"
+            target_url = self._build_target_url(request.url.path, proxy_config)
             logger.debug(
                 "Proxying request - Endpoint: %s, Target: %s, User: %s, Tenant: %s, Roles: %s, Headers: X-Tenant-ID=%s",
                 proxy_config.endpoint,

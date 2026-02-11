@@ -1,4 +1,5 @@
 import pytest
+from fastapi.testclient import TestClient
 from fastapi import status
 import yaml
 
@@ -78,3 +79,31 @@ class TestMainEndpoints:
         monkeypatch.setenv("CONFIG_FILE", str(broken_config))
         with pytest.raises(yaml.YAMLError):
             create_application()
+
+    def test_create_application_uses_packaged_default_config_outside_repo_cwd(self, tmp_path, monkeypatch):
+        """Test app starts from arbitrary cwd when CONFIG_FILE is not set."""
+        from app.main import create_application
+
+        monkeypatch.delenv("CONFIG_FILE", raising=False)
+        monkeypatch.chdir(tmp_path)
+
+        app = create_application()
+        with TestClient(app) as local_client:
+            response = local_client.get("/health")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"status": "healthy"}
+
+    def test_test_login_uses_packaged_html_outside_repo_cwd(self, tmp_path, monkeypatch):
+        """Test login page is served from package resources regardless of cwd."""
+        from app.main import create_application
+
+        monkeypatch.delenv("CONFIG_FILE", raising=False)
+        monkeypatch.chdir(tmp_path)
+
+        app = create_application()
+        with TestClient(app) as local_client:
+            response = local_client.get("/test_login")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Tiny Gateway - Login" in response.text

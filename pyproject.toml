@@ -14,6 +14,9 @@ dependencies = [
   "pydantic-settings>=2.10.1",
 ]
 
+[project.scripts]
+tiny-gateway = "app.main:run"
+
 # Use this if you prefer groups over extras (recommended for dev-only deps)
 [dependency-groups]
 dev = [
@@ -22,12 +25,15 @@ dev = [
   "pytest-asyncio>=1.1.0"
 ]
 
-# If you want to ship a test extra instead, keep your section below and
-# install with: uv run --extra test pytest
-# [project.optional-dependencies]
-# test = ["pytest>=7.4.0", "pytest-cov>=4.1.0"]
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
 
-# Uncomment if you want the project to be installable / expose scripts
-# [build-system]
-# requires = ["setuptools>=61"]
-# build-backend = "setuptools.build_meta"
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["resources/*.html", "resources/*.yml"]
