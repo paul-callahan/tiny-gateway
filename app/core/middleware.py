@@ -69,12 +69,31 @@ class ProxyMiddleware:
             return self.app.state.http_client
         return self._client
 
+    @staticmethod
+    def _path_matches_endpoint(path: str, endpoint: str) -> bool:
+        """Check if request path belongs to a configured endpoint prefix."""
+        normalized_endpoint = endpoint.rstrip("/") or "/"
+        if normalized_endpoint == "/":
+            return True
+
+        if path == normalized_endpoint:
+            return True
+
+        return path.startswith(f"{normalized_endpoint}/")
+
     def _find_matching_proxy(self, path: str) -> Optional[ProxyConfig]:
-        """Find the proxy configuration that matches the given path."""
+        """Find the most specific proxy configuration that matches the path."""
+        matches: list[tuple[int, ProxyConfig]] = []
         for endpoint, config in self.proxy_routes.items():
-            if path.startswith(endpoint):
-                return config
-        return None
+            if self._path_matches_endpoint(path, endpoint):
+                matches.append((len(endpoint.rstrip("/")), config))
+
+        if not matches:
+            return None
+
+        # Prefer the longest matching endpoint prefix.
+        matches.sort(key=lambda item: item[0], reverse=True)
+        return matches[0][1]
     
     async def _send_error_response(self, send, status_code: int, message: str) -> None:
         """Send a standardized error response."""
