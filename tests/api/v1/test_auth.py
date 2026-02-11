@@ -75,7 +75,7 @@ class TestAuthentication:
             headers=TestConstants.HEADERS["CONTENT_TYPE_FORM"]
         )
         
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, \
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, \
             f"Expected 422 for missing credentials, got {response.status_code}"
 
     def test_login_malformed_request(self, client):
@@ -86,5 +86,5 @@ class TestAuthentication:
             headers=TestConstants.HEADERS["CONTENT_TYPE_JSON"]
         )
         
-        assert response.status_code in [status.HTTP_422_UNPROCESSABLE_ENTITY, status.HTTP_400_BAD_REQUEST], \
+        assert response.status_code in [status.HTTP_422_UNPROCESSABLE_CONTENT, status.HTTP_400_BAD_REQUEST], \
             f"Expected 4xx for malformed request, got {response.status_code}"

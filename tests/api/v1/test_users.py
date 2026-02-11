@@ -76,3 +76,45 @@ class TestUsers:
         
         assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
             f"Expected 401 for expired token, got {response.status_code}"
+
+    def test_get_current_user_not_found(self):
+        """Test 404 when token user payload is valid but user no longer exists in config."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from app.api.v1.endpoints import users as users_endpoint
+        from app.api.deps import get_config, get_current_active_user
+        from app.models.config_models import AppConfig
+        from app.models.schemas import TokenPayload
+
+        app = FastAPI()
+        app.include_router(users_endpoint.router, prefix="/api/v1/users")
+
+        config = AppConfig.from_dict(
+            {
+                "tenants": [{"id": "test-tenant"}],
+                "users": [
+                    {
+                        "name": "existing-user",
+                        "password": "pass",
+                        "tenant_id": "test-tenant",
+                        "roles": ["admin"],
+                    }
+                ],
+                "roles": {"admin": [{"resource": "*", "actions": ["read"]}]},
+                "proxy": [],
+            }
+        )
+
+        app.dependency_overrides[get_config] = lambda: config
+        app.dependency_overrides[get_current_active_user] = lambda: TokenPayload(
+            sub="missing-user",
+            roles=["admin"],
+            tenant_id="test-tenant",
+        )
+
+        with TestClient(app) as local_client:
+            response = local_client.get("/api/v1/users/me")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"] == "User not found"
