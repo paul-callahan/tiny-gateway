@@ -117,11 +117,8 @@ class TestRoleBasedAccessControl:
             headers=headers
         )
         
-        # This should still work because we're validating the token format,
-        # not necessarily tenant isolation at this level
-        # Tenant isolation would be enforced by business logic, not auth
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_401_UNAUTHORIZED], \
-            f"Unexpected response for cross-tenant token: {response.status_code}"
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
+            f"Expected 401 for cross-tenant token, got {response.status_code}"
 
     def test_malformed_jwt_token(self):
         """Test that malformed JWT tokens are rejected."""

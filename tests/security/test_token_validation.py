@@ -134,6 +134,26 @@ class TestTokenValidation:
             assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
                 f"Expected 401 for empty claim values, got {response.status_code}"
 
+    def test_token_roles_must_match_configured_user_roles(self, client):
+        """Test that token roles are bound to configured user roles."""
+        token_data = {
+            "sub": TestConstants.TEST_USER,
+            "tenant_id": TestConstants.TEST_TENANT,
+            "roles": [TestConstants.ROLES["VIEWER"]],
+            "exp": datetime.now(UTC) + timedelta(minutes=30)
+        }
+
+        token = jwt.encode(token_data, settings.SECRET_KEY, algorithm="HS256")
+        headers = TestDataFactory.create_auth_headers(token)
+
+        response = client.get(
+            TestConstants.ENDPOINTS["USER_ME"],
+            headers=headers
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, \
+            f"Expected 401 for mismatched token roles, got {response.status_code}"
+
     def test_token_with_future_issued_at(self, client):
         """Test that tokens with future 'iat' claim are handled properly."""
         token_data = {

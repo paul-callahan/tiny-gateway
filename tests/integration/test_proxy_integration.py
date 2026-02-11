@@ -145,10 +145,10 @@ def proxy_test_config(mock_backend):
         ],
         "roles": {
             "user": [
-                {"resource": "data", "actions": ["read"]}
+                {"resource": "graph", "actions": ["read"]}
             ],
             "admin": [
-                {"resource": "*", "actions": ["read", "write", "create", "delete"]}
+                {"resource": "*", "actions": ["read", "write", "create", "update", "delete", "execute"]}
             ]
         },
         "proxy": [
@@ -313,20 +313,21 @@ class TestProxyIntegration:
         assert "test-tenant-1" in tenant_ids
         assert "test-tenant-2" in tenant_ids
     
-    def test_proxy_request_methods_and_data(self, proxy_client, auth_token_user1, mock_backend):
+    def test_proxy_request_methods_and_data(self, proxy_client, auth_token_user1, auth_token_user2, mock_backend):
         """Test proxy works with different HTTP methods and request data."""
         mock_backend.clear_requests()
-        headers = TestDataFactory.create_auth_headers(auth_token_user1)
+        read_only_headers = TestDataFactory.create_auth_headers(auth_token_user1)
+        write_headers = TestDataFactory.create_auth_headers(auth_token_user2)
         
         # GET request
-        response = proxy_client.get("/api/v1/graph/items", headers=headers)
+        response = proxy_client.get("/api/v1/graph/items", headers=read_only_headers)
         assert response.status_code == 200
         
-        # POST request with JSON data
+        # POST request with JSON data (admin user)
         post_data = {"name": "test item", "value": 123}
         response = proxy_client.post(
             "/api/v1/graph/items", 
-            headers=headers, 
+            headers=write_headers, 
             json=post_data
         )
         assert response.status_code == 200
@@ -341,6 +342,21 @@ class TestProxyIntegration:
         # Verify POST data was forwarded
         post_request = post_requests[0]
         assert json.loads(post_request["body"]) == post_data
+
+    def test_proxy_rbac_denies_disallowed_action(self, proxy_client, auth_token_user1, mock_backend):
+        """Test that read-only role cannot perform write action through proxy."""
+        mock_backend.clear_requests()
+        read_only_headers = TestDataFactory.create_auth_headers(auth_token_user1)
+
+        response = proxy_client.post(
+            "/api/v1/graph/items",
+            headers=read_only_headers,
+            json={"name": "blocked"}
+        )
+
+        assert response.status_code == 403
+        assert "Insufficient role permissions" in response.json()["detail"]
+        assert len(mock_backend.captured_requests) == 0
     
     def test_proxy_query_parameters(self, proxy_client, auth_token_user1, mock_backend):
         """Test that query parameters are forwarded correctly."""
@@ -407,7 +423,7 @@ class TestProxyIntegration:
                 "roles": ["user"],
                 "tenant_id": "test-tenant-1"
             }],
-            "roles": {"user": [{"resource": "data", "actions": ["read"]}]},
+            "roles": {"user": [{"resource": "graph", "actions": ["read"]}]},
             "proxy": [{
                 "endpoint": "/api/v1/graph",
                 "target": "http://127.0.0.1:9998/",  # Non-existent port

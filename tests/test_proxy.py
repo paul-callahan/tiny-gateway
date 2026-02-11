@@ -89,11 +89,24 @@ def test_proxy_middleware_path_preservation(test_app, mock_async_client, target_
             change_origin=True
         )
     ]
+
+    test_user = User(
+        name="testuser",
+        password="testpassword",
+        tenant_id="test-tenant",
+        roles=["admin"]
+    )
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
     
     # Create test client with middleware, passing the mock client
     test_app.add_middleware(
         ProxyMiddleware,
-        config=AppConfig(proxy=proxy_config, users=[], roles={}, tenants=[]),
+        config=AppConfig(
+            proxy=proxy_config,
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}]
+        ),
         client=mock_async_client
     )
     
