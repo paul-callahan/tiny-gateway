@@ -99,11 +99,15 @@ Edit `config.yml` to configure:
   proxy:
     - endpoint: /api/data
       target: http://backend-service/
-      rewrite: ""  # Currently unused, kept for future compatibility
+      rewrite: /data
       change_origin: true  # If true, updates the Host header to match target
   ```
 
-  The proxy will forward requests from `{endpoint}/*` to `{target}/*` with the same path. For example, a request to `/api/data/items` will be forwarded to `http://backend-service/api/data/items`.
+  The proxy will forward requests from `{endpoint}/*` to `{target}{rewrite}/*` by replacing the endpoint prefix.
+  If `rewrite` is omitted or empty, the original request path is preserved.
+  For example, request `/api/data/items`:
+  - with `rewrite: /data` => `http://backend-service/data/items`
+  - with `rewrite: ""` => `http://backend-service/api/data/items`
 
 ### Tenant ID in JWT Tokens
 
@@ -194,11 +198,15 @@ If you prefer to run without Docker:
 
 2. Run the service:
    ```bash
-   uv run uvicorn main:app --reload
+   uv run uvicorn app.main:app --reload
+   ```
+   or
+   ```bash
+   uv run tiny-gateway
    ```
 
 ### Environment Variables
-- `CONFIG_FILE`: Path to configuration file (default: `config/config.yml`)
+- `CONFIG_FILE`: Path to configuration file (default: packaged `app/resources/default_config.yml`)
 - `SECRET_KEY`: JWT signing key (default: development key)  
 - `ACCESS_TOKEN_EXPIRE_MINUTES`: Token expiration time (default: 30)
 
