@@ -378,3 +378,96 @@ def test_proxy_resource_override_denies_when_permission_resource_differs(test_ap
 
     assert response.status_code == 403
     mock_async_client.request.assert_not_called()
+
+
+def test_client_property_prefers_app_state_http_client():
+    app = FastAPI()
+    shared_client = MagicMock()
+    app.state.http_client = shared_client
+
+    middleware = ProxyMiddleware(
+        app=app,
+        config=AppConfig(proxy=[], users=[], roles={}, tenants=[]),
+        client=MagicMock(),
+    )
+
+    assert middleware.client is shared_client
+
+
+def test_path_matching_root_endpoint_matches_all_paths():
+    assert ProxyMiddleware._path_matches_endpoint("/anything", "/") is True
+
+
+def test_resource_matches_rejects_empty_normalized_names():
+    assert ProxyMiddleware._resource_matches("!!!", "graphs") is False
+
+
+def test_resource_matches_handles_plural_forms_both_directions():
+    assert ProxyMiddleware._resource_matches("graphs", "graph") is True
+    assert ProxyMiddleware._resource_matches("graph", "graphs") is True
+
+
+def test_is_authorized_for_proxy_returns_false_when_no_roles():
+    app = FastAPI()
+    proxy_config = ProxyConfig(endpoint="/api/v1/graph", target="http://test-server/")
+    middleware = ProxyMiddleware(
+        app=app,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[],
+            roles={"reader": [Permission(resource="graph", actions=["read"])]},
+            tenants=[],
+        ),
+        client=MagicMock(),
+    )
+
+    assert middleware._is_authorized_for_proxy([], "GET", proxy_config) is False
+
+
+def test_proxy_returns_500_on_unexpected_proxy_error(test_app, mock_async_client):
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        rewrite="",
+        change_origin=True,
+    )
+    test_user = User(name="testuser", password="testpassword", tenant_id="test-tenant", roles=["admin"])
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}],
+        ),
+        client=mock_async_client,
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token()
+
+    with patch.object(ProxyMiddleware, "_proxy_request", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        response = client.get("/api/v1/graph", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Internal Server Error"
+
+
+@pytest.mark.asyncio
+async def test_close_closes_owned_client():
+    app = FastAPI()
+    owned_client = MagicMock()
+    owned_client.aclose = AsyncMock()
+
+    with patch.object(ProxyMiddleware, "_create_http_client", return_value=owned_client):
+        middleware = ProxyMiddleware(
+            app=app,
+            config=AppConfig(proxy=[], users=[], roles={}, tenants=[]),
+        )
+
+    await middleware.close()
+
+    owned_client.aclose.assert_awaited_once()
+    assert middleware._client is None

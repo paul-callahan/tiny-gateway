@@ -87,7 +87,7 @@ class MockBackendServer:
     def start(self):
         """Start the mock backend server."""
         def run_server():
-            uvicorn.run(self.app, host="127.0.0.1", port=self.port, log_level="error")
+            uvicorn.run(self.app, host="127.0.0.1", port=self.port, log_level="error", ws="none")
         
         self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()

@@ -1,5 +1,6 @@
 import pytest
 from fastapi import status
+import yaml
 
 from tests.constants import TestConstants
 
@@ -58,3 +59,22 @@ class TestMainEndpoints:
         assert isinstance(response_data, dict), "Health check should return a dictionary"
         assert "status" in response_data, "Health check should contain 'status' field"
         assert response_data["status"] == "healthy", "Status should be 'healthy'"
+
+    def test_create_application_missing_config_file_raises(self, monkeypatch):
+        """Test startup fails with missing config file."""
+        from app.main import create_application
+
+        monkeypatch.setenv("CONFIG_FILE", "/tmp/definitely-missing-config.yml")
+        with pytest.raises(FileNotFoundError):
+            create_application()
+
+    def test_create_application_invalid_yaml_raises(self, tmp_path, monkeypatch):
+        """Test startup fails with malformed YAML config."""
+        from app.main import create_application
+
+        broken_config = tmp_path / "broken-config.yml"
+        broken_config.write_text("tenants: [\n", encoding="utf-8")
+
+        monkeypatch.setenv("CONFIG_FILE", str(broken_config))
+        with pytest.raises(yaml.YAMLError):
+            create_application()
