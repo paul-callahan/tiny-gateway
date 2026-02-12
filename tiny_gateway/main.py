@@ -2,9 +2,11 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import NoReturn
 
 import yaml
 from fastapi import FastAPI
+from pydantic import ValidationError
 from starlette.responses import FileResponse
 
 from tiny_gateway.api.api import api_router
@@ -20,6 +22,18 @@ DEFAULT_CONFIG_FILE = RESOURCE_DIR / "default_config.yml"
 LOGIN_PAGE_FILE = RESOURCE_DIR / "index.html"
 
 
+class ConfigLoadError(RuntimeError):
+    """Raised when configuration cannot be loaded or validated."""
+
+
+def _raise_config_error(config_path: Path, reason: str, exc: Exception | None = None) -> NoReturn:
+    message = f"Configuration error in '{config_path}': {reason}"
+    logger.error(message)
+    if exc is None:
+        raise ConfigLoadError(message)
+    raise ConfigLoadError(message) from exc
+
+
 def _resolve_config_path() -> Path:
     configured_path = os.getenv("CONFIG_FILE")
     if configured_path:
@@ -33,14 +47,29 @@ def _load_config() -> AppConfig:
     try:
         with config_path.open("r", encoding="utf-8") as config_file:
             config_data = yaml.safe_load(config_file) or {}
-        config = AppConfig.from_dict(config_data)
-        logger.info("Configuration loaded from %s", config_path)
-    except FileNotFoundError:
-        logger.error("Configuration file not found: %s", config_path)
-        raise
+    except FileNotFoundError as exc:
+        _raise_config_error(
+            config_path,
+            "file not found. Set CONFIG_FILE to a valid YAML file path.",
+            exc,
+        )
+    except PermissionError as exc:
+        _raise_config_error(config_path, "file cannot be read due to permissions.", exc)
     except yaml.YAMLError as exc:
-        logger.error("Error parsing YAML configuration: %s", exc)
-        raise
+        _raise_config_error(config_path, f"invalid YAML syntax ({exc}).", exc)
+
+    try:
+        config = AppConfig.from_dict(config_data)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(loc) for loc in err.get('loc', [])) or '<root>'}: {err.get('msg', 'invalid value')}"
+            for err in exc.errors()
+        )
+        _raise_config_error(config_path, f"validation failed ({details}).", exc)
+    except ValueError as exc:
+        _raise_config_error(config_path, f"validation failed ({exc}).", exc)
+
+    logger.info("Configuration loaded from %s", config_path)
 
     if config.default_config:
         logger.warning(

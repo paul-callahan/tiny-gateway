@@ -4,7 +4,7 @@ Tiny Gateway is a lightweight API gateway for multi-tenant development environme
 It handles authentication, role-based authorization for proxied routes, and forwards tenant context to backend services.
 
 ```mermaid
-graph  LR
+graph LR
 subgraph "Docker"
     TinyGateway(Tiny Gateway)
     UIServer[Dev UI Server]
@@ -29,82 +29,83 @@ TinyGateway -- proxy <--> Service2
 
 This project is intended for development and testing environments, not production.
 
-## Quick Start (Recommended): Docker + Your Own `config.yml`
+## Quick Start (One Command Demo)
 
-1. Build the image:
-   ```bash
-   docker build -t tiny-gateway:local .
-   ```
+This repo ships a working demo path by default:
 
-2. Start from a sample config (or use your own file):
-   ```bash
-   cp sample-configs/basic-single-tenant.yml ./my-gateway.yml
-   ```
+- prebuilt image: `ghcr.io/paul-callahan/tiny-gateway:latest`
+- default config: `sample-configs/basic-single-tenant.yml`
+- demo upstream: `mock-backend` (from `docker-compose.yml`)
 
-3. Run Tiny Gateway with your config mounted as a single file:
-   ```bash
-   docker run --rm -p 8000:8000 \
-     -e CONFIG_FILE=/app/config/runtime.yml \
-     -e SECRET_KEY=dev-secret-key-change-me \
-     -e ACCESS_TOKEN_EXPIRE_MINUTES=30 \
-     -e LOG_LEVEL=INFO \
-     -v "$(pwd)/my-gateway.yml:/app/config/runtime.yml:ro" \
-     tiny-gateway:local
-   ```
+Run:
 
-4. Verify service is up:
-   ```bash
-   curl http://localhost:8000/health
-   ```
+```bash
+docker compose up
+```
 
-## Docker Compose (Fastest Repo Workflow)
+Then verify:
 
-`docker-compose.yml` expects `./config/config.yml`, so the simplest path is:
+```bash
+curl http://localhost:8000/health
+```
 
-1. Put your config at `config/config.yml`:
-   ```bash
-   cp sample-configs/multi-tenant-rbac.yml ./config/config.yml
-   ```
+Login and test proxied route:
 
-2. Start:
-   ```bash
-   docker compose up --build
-   ```
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'username=admin&password=admin123'
 
-3. Verify:
-   ```bash
-   curl http://localhost:8000/health
-   ```
+# Copy the access_token value from the response, then:
+curl http://localhost:8000/api/service \
+  -H "Authorization: Bearer <access_token>"
+```
 
-4. Stop:
-   ```bash
-   docker compose down
-   ```
+Stop:
+
+```bash
+docker compose down
+```
+
+## Use Your Own `config.yml`
+
+### Option A: Docker Compose (easiest)
+
+Point compose to your config file with one env var:
+
+```bash
+TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/your-config.yml docker compose up
+```
+
+or put it in `.env` (see `.env.example`):
+
+```env
+TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/your-config.yml
+```
+
+### Option B: Docker Run (single container)
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e CONFIG_FILE=/app/config/runtime.yml \
+  -e SECRET_KEY=dev-secret-key-change-me \
+  -e ACCESS_TOKEN_EXPIRE_MINUTES=30 \
+  -e LOG_LEVEL=INFO \
+  -v "/absolute/path/to/your-config.yml:/app/config/runtime.yml:ro" \
+  ghcr.io/paul-callahan/tiny-gateway:latest
+```
 
 ## Sample Configs
 
-Use these files in `/sample-configs` as starting points:
+`sample-configs/` contains ready-to-use examples:
 
-- `basic-single-tenant.yml`: one tenant, one admin, one upstream
+- `basic-single-tenant.yml`: single tenant + demo upstream
 - `multi-tenant-rbac.yml`: multiple tenants with role-scoped access
-- `path-rewrite.yml`: endpoint prefix rewrite to a different upstream path
-- `multi-upstream.yml`: multiple endpoints routed to different services
-- `wildcard-admin.yml`: wildcard resource/action role for broad access
+- `path-rewrite.yml`: endpoint prefix rewrite example
+- `multi-upstream.yml`: routes to multiple upstream services
+- `wildcard-admin.yml`: broad wildcard permissions
 
-## Key Capabilities
-
-- Issues JWT access tokens via `POST /api/v1/auth/login`
-- Exposes current-user info via `GET /api/v1/users/me`
-- Enforces RBAC on proxied routes using configured roles and permissions
-- Enforces tenant/role binding: token claims must match current configured user state
-- Proxies matched routes to configured upstream targets
-- Supports path rewrite and host header rewriting per proxy rule
-- Adds `X-Tenant-ID` to proxied requests
-- Loads configuration from YAML (`CONFIG_FILE`) with packaged defaults when `CONFIG_FILE` is not set
-
-## Configuration Reference
-
-Configuration file schema:
+## Configuration Schema
 
 ```yaml
 tenants:
@@ -112,7 +113,7 @@ tenants:
 
 users:
   - name: alice
-    password: pass123
+    password: pass123        # plaintext or bcrypt hash
     tenant_id: tenant-a
     roles: [editor]
 
@@ -126,23 +127,18 @@ proxy:
     target: http://reports-api:9000/
     rewrite: ""
     change_origin: true
-    resource: reports   # optional; overrides inferred resource name
+    resource: reports        # optional RBAC resource override
 ```
 
-### Passwords
-
-User `password` supports:
-
-- plaintext (simple dev setup)
-- bcrypt hash (recommended for shared dev environments)
+## Behavior Notes
 
 ### Proxy Matching and Rewrite
 
-- Proxy matching is prefix-based against `proxy[].endpoint`
-- If multiple entries match, the most-specific endpoint wins
-- `rewrite: ""` keeps the external path prefix
-- `rewrite: "/new-prefix"` replaces the endpoint prefix with `/new-prefix`
-- `change_origin: true` rewrites `Host` to the upstream host
+- matching is prefix-based (`proxy[].endpoint`)
+- if multiple routes match, most-specific endpoint wins
+- `rewrite: ""` preserves external endpoint prefix
+- `rewrite: "/new-prefix"` replaces endpoint prefix
+- `change_origin: true` rewrites `Host` header to upstream host
 
 ### RBAC Mapping for Proxied Requests
 
@@ -151,62 +147,47 @@ User `password` supports:
 - `PUT`, `PATCH` -> one of `update`, `write`
 - `DELETE` -> one of `delete`, `write`
 
-Permission matching behavior:
+Permission matching:
 
-- `resource: "*"` matches any resource
-- action `"*"` matches any action
-- if `proxy[].resource` is set, that is used for RBAC resource checks
-- otherwise, resource is inferred from the endpoint tail segment
+- `resource: "*"` matches all resources
+- action `"*"` matches all actions
+- `proxy[].resource` is used when present
+- otherwise resource is inferred from endpoint tail segment
 
 ### Tenant and Role Binding
 
-On authenticated requests, token claims are re-validated against current configured users:
+For authenticated requests, token claims are re-validated against configured users:
 
-- `sub` user must still exist
-- token `tenant_id` must equal configured user tenant
+- user (`sub`) must exist
+- token `tenant_id` must match configured user tenant
 - token roles must match configured user roles
 
-If any check fails, the request is rejected.
+## Startup Config Validation
+
+Config is validated immediately at app startup.
+If config has issues (missing file, invalid YAML, or schema/role/tenant errors), startup fails early with a clear error message including the config path and reason.
 
 ## API Endpoints
 
 - `POST /api/v1/auth/login`
-  - OAuth2 password form (`username`, `password`)
-  - returns `{"access_token":"...","token_type":"bearer"}`
 - `GET /api/v1/users/me`
-  - requires `Authorization: Bearer <token>`
 - `GET /health`
 - `GET /test_login`
 - `GET /docs`
 
-## Example Auth Flow
-
-1. Get token:
-   ```bash
-   curl -X POST http://localhost:8000/api/v1/auth/login \
-     -H 'Content-Type: application/x-www-form-urlencoded' \
-     -d 'username=admin&password=admin123'
-   ```
-
-2. Call authenticated endpoint:
-   ```bash
-   curl http://localhost:8000/api/v1/users/me \
-     -H "Authorization: Bearer <access_token>"
-   ```
-
 ## Environment Variables
 
-- `CONFIG_FILE`: YAML config path
+- `CONFIG_FILE`: config file path inside container/runtime
 - `SECRET_KEY`: JWT signing key
 - `ACCESS_TOKEN_EXPIRE_MINUTES`: token lifetime in minutes
 - `LOG_LEVEL`: `DEBUG|INFO|WARNING|ERROR|CRITICAL`
-- `HOST`: runtime host for CLI entrypoint
-- `PORT`: runtime port for CLI entrypoint
-- `RELOAD`: enables auto-reload for CLI entrypoint (`1`, `true`, `yes`)
+- `HOST`: CLI host override
+- `PORT`: CLI port override
+- `RELOAD`: CLI reload toggle (`1`, `true`, `yes`)
 
-## Optional Local Run (No Docker)
+Docker Compose helpers (in `.env.example`):
 
-```bash
-uv sync --group dev
-uv run uvicorn tiny_gateway.main:app --reload
-```
+- `TINY_GATEWAY_IMAGE`
+- `TINY_GATEWAY_PORT`
+- `TINY_GATEWAY_CONFIG_FILE`
+- `TINY_GATEWAY_CONFIG_PATH_IN_CONTAINER`

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from tiny_gateway.main import create_application
+from tiny_gateway.main import ConfigLoadError, create_application
 from tiny_gateway.models.config_models import AppConfig
 
 
@@ -69,5 +69,5 @@ proxy: []
 
     monkeypatch.setenv("CONFIG_FILE", str(config_path))
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ConfigLoadError, match="validation failed"):
         create_application()
