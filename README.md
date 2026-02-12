@@ -69,30 +69,29 @@ docker compose down
 
 ## Use Your Own `config.yml`
 
-### Option A: Docker Compose (easiest)
+### Primary: Docker Run (single container)
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e CONFIG_FILE=/app/config/config.yml \
+  -v "/absolute/path/to/config.yml:/app/config/config.yml:ro" \
+  ghcr.io/paul-callahan/tiny-gateway:latest
+```
+
+`/absolute/path/to/config.yml` is recommended, not required. A relative host path also works (resolved from your current shell directory), for example: `-v "./config.yml:/app/config/config.yml:ro"`.
+
+### Option B: Docker Compose
 
 Point compose to your config file with one env var:
 
 ```bash
-TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/your-config.yml docker compose up
+TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/config.yml docker compose up
 ```
 
 or put it in `.env` (see `.env.example`):
 
 ```env
-TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/your-config.yml
-```
-
-### Option B: Docker Run (single container)
-
-```bash
-docker run --rm -p 8000:8000 \
-  -e CONFIG_FILE=/app/config/config.yml \
-  -e SECRET_KEY=dev-secret-key-change-me \
-  -e ACCESS_TOKEN_EXPIRE_MINUTES=30 \
-  -e LOG_LEVEL=INFO \
-  -v "/absolute/path/to/your-config.yml:/app/config/config.yml:ro" \
-  ghcr.io/paul-callahan/tiny-gateway:latest
+TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/config.yml
 ```
 
 ## Sample Configs
