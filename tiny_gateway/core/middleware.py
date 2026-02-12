@@ -5,9 +5,9 @@ from typing import Dict, Optional, Any, Set
 from starlette.requests import Request as StarletteRequest
 from fastapi import HTTPException
 
-from app.models.config_models import AppConfig, ProxyConfig
-from app.models.schemas import TokenPayload
-from app.core.security import validate_token_and_get_payload
+from tiny_gateway.models.config_models import AppConfig, ProxyConfig
+from tiny_gateway.models.schemas import TokenPayload
+from tiny_gateway.core.security import validate_token_and_get_payload
 
 logger = logging.getLogger(__name__)
 

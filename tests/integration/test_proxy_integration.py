@@ -11,9 +11,9 @@ import time
 import httpx
 from unittest.mock import patch
 
-from app.main import create_application
-from app.models.config_models import AppConfig
-from app.api.deps import get_config
+from tiny_gateway.main import create_application
+from tiny_gateway.models.config_models import AppConfig
+from tiny_gateway.api.deps import get_config
 from tests.constants import TestConstants
 from tests.factories import TestDataFactory
 
@@ -166,8 +166,8 @@ def proxy_test_config(mock_backend):
 @pytest.fixture
 def proxy_client(proxy_test_config):
     """Create test client with proxy configuration."""
-    from app.main import create_application
-    from app.config.settings import settings
+    from tiny_gateway.main import create_application
+    from tiny_gateway.config.settings import settings
     
     # Temporarily override settings for test
     original_secret = settings.SECRET_KEY
@@ -175,8 +175,8 @@ def proxy_client(proxy_test_config):
     
     # Create a new FastAPI app without loading config from file
     from fastapi import FastAPI
-    from app.api.api import api_router
-    from app.core.middleware import ProxyMiddleware
+    from tiny_gateway.api.api import api_router
+    from tiny_gateway.core.middleware import ProxyMiddleware
     
     app = FastAPI(
         title="Test API Gateway",
@@ -409,10 +409,10 @@ class TestProxyIntegration:
     
     def test_proxy_backend_connection_error(self, auth_token_user1):
         """Test proxy handling when backend is unavailable."""
-        from app.config.settings import settings
+        from tiny_gateway.config.settings import settings
         from fastapi import FastAPI
-        from app.api.api import api_router
-        from app.core.middleware import ProxyMiddleware
+        from tiny_gateway.api.api import api_router
+        from tiny_gateway.core.middleware import ProxyMiddleware
         
         # Create client with config pointing to non-existent backend
         bad_config_data = {

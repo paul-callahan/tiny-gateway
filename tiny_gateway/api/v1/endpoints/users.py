@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 
-from app.models.schemas import UserResponse, TokenPayload
-from app.models.config_models import AppConfig, User
-from app.api.deps import get_current_active_user, get_config
+from tiny_gateway.models.schemas import UserResponse, TokenPayload
+from tiny_gateway.models.config_models import AppConfig, User
+from tiny_gateway.api.deps import get_current_active_user, get_config
 
 router = APIRouter()
 

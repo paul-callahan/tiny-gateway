@@ -198,7 +198,7 @@ If you prefer to run without Docker:
 
 2. Run the service:
    ```bash
-   uv run uvicorn app.main:app --reload
+   uv run uvicorn tiny_gateway.main:app --reload
    ```
    or
    ```bash
@@ -206,7 +206,7 @@ If you prefer to run without Docker:
    ```
 
 ### Environment Variables
-- `CONFIG_FILE`: Path to configuration file (default: packaged `app/resources/default_config.yml`)
+- `CONFIG_FILE`: Path to configuration file (default: packaged `tiny_gateway/resources/default_config.yml`)
 - `SECRET_KEY`: JWT signing key (default: development key)  
 - `ACCESS_TOKEN_EXPIRE_MINUTES`: Token expiration time (default: 30)
 
@@ -214,7 +214,7 @@ If you prefer to run without Docker:
 
 ```
 .
-├── app/                      # Application code
+├── tiny_gateway/                      # Application code
 │   ├── api/                  # API routes
 │   ├── core/                 # Core functionality
 │   ├── models/               # Data models

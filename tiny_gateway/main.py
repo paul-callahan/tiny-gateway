@@ -7,10 +7,10 @@ import yaml
 from fastapi import FastAPI
 from starlette.responses import FileResponse
 
-from app.api.api import api_router
-from app.config.settings import settings
-from app.core.middleware import ProxyMiddleware
-from app.models.config_models import AppConfig
+from tiny_gateway.api.api import api_router
+from tiny_gateway.config.settings import settings
+from tiny_gateway.core.middleware import ProxyMiddleware
+from tiny_gateway.models.config_models import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def run() -> None:
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
     reload_enabled = os.getenv("RELOAD", "").lower() in {"1", "true", "yes"}
-    uvicorn.run("app.main:app", host=host, port=port, reload=reload_enabled)
+    uvicorn.run("tiny_gateway.main:app", host=host, port=port, reload=reload_enabled)
 
 
 app = create_application()

@@ -3,8 +3,8 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from app.core.middleware import ProxyMiddleware
-from app.models.config_models import AppConfig, ProxyConfig, User, Permission
+from tiny_gateway.core.middleware import ProxyMiddleware
+from tiny_gateway.models.config_models import AppConfig, ProxyConfig, User, Permission
 from tests.factories import TestDataFactory
 
 @pytest.fixture

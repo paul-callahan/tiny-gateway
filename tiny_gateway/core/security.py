@@ -7,9 +7,9 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from app.config.settings import settings
-from app.models.schemas import TokenPayload
-from app.models.config_models import AppConfig, User
+from tiny_gateway.config.settings import settings
+from tiny_gateway.models.schemas import TokenPayload
+from tiny_gateway.models.config_models import AppConfig, User
 from .constants import oauth2_scheme
 
 logger = logging.getLogger(__name__)

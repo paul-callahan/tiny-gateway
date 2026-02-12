@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, users
-from app.config import settings
+from tiny_gateway.api.v1.endpoints import auth, users
+from tiny_gateway.config import settings
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])

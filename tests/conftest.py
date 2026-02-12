@@ -1,9 +1,9 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from app.api.api import api_router
-from app.models.config_models import AppConfig
-from app.api.deps import get_config
+from tiny_gateway.api.api import api_router
+from tiny_gateway.models.config_models import AppConfig
+from tiny_gateway.api.deps import get_config
 import yaml
 
 @pytest.fixture(scope="session")
@@ -17,8 +17,8 @@ def test_config():
 def client(test_config):
     """Create a test client for the FastAPI application with test configuration"""
     # Import here to avoid circular imports
-    from app.main import create_application
-    from app.config import settings as app_settings
+    from tiny_gateway.main import create_application
+    from tiny_gateway.config import settings as app_settings
     
     # Set test settings
     app_settings.ACCESS_TOKEN_EXPIRE_MINUTES = 30
