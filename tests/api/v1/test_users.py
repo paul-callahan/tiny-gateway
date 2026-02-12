@@ -82,10 +82,10 @@ class TestUsers:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
-        from app.api.v1.endpoints import users as users_endpoint
-        from app.api.deps import get_config, get_current_active_user
-        from app.models.config_models import AppConfig
-        from app.models.schemas import TokenPayload
+        from tiny_gateway.api.v1.endpoints import users as users_endpoint
+        from tiny_gateway.api.deps import get_config, get_current_active_user
+        from tiny_gateway.models.config_models import AppConfig
+        from tiny_gateway.models.schemas import TokenPayload
 
         app = FastAPI()
         app.include_router(users_endpoint.router, prefix="/api/v1/users")

@@ -137,7 +137,7 @@ class TestRoleBasedAccessControl:
         # Create token without tenant_id
         from datetime import datetime, timedelta, UTC
         from jose import jwt
-        from app.config.settings import settings
+        from tiny_gateway.config.settings import settings
         
         token_data = {
             "sub": TestConstants.TEST_USER,

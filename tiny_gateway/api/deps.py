@@ -1,7 +1,7 @@
 from fastapi import Depends, Request
-from app.core.constants import oauth2_scheme
-from app.models.config_models import AppConfig
-from app.models.schemas import TokenPayload
+from tiny_gateway.core.constants import oauth2_scheme
+from tiny_gateway.models.config_models import AppConfig
+from tiny_gateway.models.schemas import TokenPayload
 
 def get_config(request: Request) -> AppConfig:
     """
@@ -33,7 +33,7 @@ async def get_current_user_dependency(
         TokenPayload: The validated token payload containing user information
     """
     # Import here to avoid circular import
-    from app.core.security import get_current_user
+    from tiny_gateway.core.security import get_current_user
     return await get_current_user(token, config)
 
 # Alias for backwards compatibility

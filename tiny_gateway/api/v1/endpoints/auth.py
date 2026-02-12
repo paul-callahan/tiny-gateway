@@ -3,11 +3,11 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.core.security import authenticate_user, create_access_token
-from app.models.schemas import Token
-from app.models.config_models import AppConfig
-from app.api.deps import get_config
-from app.config.settings import settings
+from tiny_gateway.core.security import authenticate_user, create_access_token
+from tiny_gateway.models.schemas import Token
+from tiny_gateway.models.config_models import AppConfig
+from tiny_gateway.api.deps import get_config
+from tiny_gateway.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

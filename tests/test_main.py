@@ -63,7 +63,7 @@ class TestMainEndpoints:
 
     def test_create_application_missing_config_file_raises(self, monkeypatch):
         """Test startup fails with missing config file."""
-        from app.main import create_application
+        from tiny_gateway.main import create_application
 
         monkeypatch.setenv("CONFIG_FILE", "/tmp/definitely-missing-config.yml")
         with pytest.raises(FileNotFoundError):
@@ -71,7 +71,7 @@ class TestMainEndpoints:
 
     def test_create_application_invalid_yaml_raises(self, tmp_path, monkeypatch):
         """Test startup fails with malformed YAML config."""
-        from app.main import create_application
+        from tiny_gateway.main import create_application
 
         broken_config = tmp_path / "broken-config.yml"
         broken_config.write_text("tenants: [\n", encoding="utf-8")
@@ -82,7 +82,7 @@ class TestMainEndpoints:
 
     def test_create_application_uses_packaged_default_config_outside_repo_cwd(self, tmp_path, monkeypatch):
         """Test app starts from arbitrary cwd when CONFIG_FILE is not set."""
-        from app.main import create_application
+        from tiny_gateway.main import create_application
 
         monkeypatch.delenv("CONFIG_FILE", raising=False)
         monkeypatch.chdir(tmp_path)
@@ -96,7 +96,7 @@ class TestMainEndpoints:
 
     def test_test_login_uses_packaged_html_outside_repo_cwd(self, tmp_path, monkeypatch):
         """Test login page is served from package resources regardless of cwd."""
-        from app.main import create_application
+        from tiny_gateway.main import create_application
 
         monkeypatch.delenv("CONFIG_FILE", raising=False)
         monkeypatch.chdir(tmp_path)

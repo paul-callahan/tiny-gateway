@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, UTC
 from jose import jwt
 from fastapi import status
 
-from app.config.settings import settings
+from tiny_gateway.config.settings import settings
 from tests.constants import TestConstants
 from tests.factories import TestDataFactory
 

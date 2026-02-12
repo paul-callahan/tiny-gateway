@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, UTC
 from typing import List, Optional
 from jose import jwt
 
-from app.models.config_models import User, Tenant, ProxyConfig, Permission
-from app.config.settings import settings
+from tiny_gateway.models.config_models import User, Tenant, ProxyConfig, Permission
+from tiny_gateway.config.settings import settings
 from tests.constants import TestConstants
 
 

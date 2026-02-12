@@ -5,10 +5,10 @@ import pytest
 from fastapi import HTTPException, status
 from jose import jwt
 
-from app.config.settings import settings
-from app.core import security
-from app.models.config_models import AppConfig
-from app.models.schemas import TokenPayload
+from tiny_gateway.config.settings import settings
+from tiny_gateway.core import security
+from tiny_gateway.models.config_models import AppConfig
+from tiny_gateway.models.schemas import TokenPayload
 
 
 def _build_config() -> AppConfig:
@@ -40,7 +40,7 @@ def test_password_hash_and_validation_paths():
         assert security.verify_password(password, hashed_password) is True
         mock_verify.assert_called_once_with(password, hashed_password)
 
-    with patch("app.core.security.verify_password", return_value=True) as mock_verify_password:
+    with patch("tiny_gateway.core.security.verify_password", return_value=True) as mock_verify_password:
         assert security._validate_password(password, hashed_password) is True
         mock_verify_password.assert_called_once_with(password, hashed_password)
 
@@ -98,7 +98,7 @@ def test_validate_token_rejects_user_not_in_config():
 
 def test_validate_token_handles_unexpected_decode_error():
     config = _build_config()
-    with patch("app.core.security.jwt.decode", side_effect=Exception("decode blew up")):
+    with patch("tiny_gateway.core.security.jwt.decode", side_effect=Exception("decode blew up")):
         with pytest.raises(HTTPException) as exc_info:
             security.validate_token_and_get_payload("not-used", config)
 

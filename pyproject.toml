@@ -2,7 +2,26 @@
 name = "tiny-gateway"
 version = "0.1.0"
 description = "API Gateway with JWT authentication and request proxying"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+  { name = "Tiny Gateway Contributors" },
+]
+maintainers = [
+  { name = "Tiny Gateway Maintainers" },
+]
+keywords = ["api-gateway", "fastapi", "jwt", "rbac", "multitenant", "proxy"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: Proxy Servers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
   "fastapi>=0.116.1",
   "uvicorn[standard]>=0.35.0",
@@ -14,8 +33,13 @@ dependencies = [
   "pydantic-settings>=2.10.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/paul-callahan/tiny-gateway"
+Repository = "https://github.com/paul-callahan/tiny-gateway"
+Issues = "https://github.com/paul-callahan/tiny-gateway/issues"
+
 [project.scripts]
-tiny-gateway = "app.main:run"
+tiny-gateway = "tiny_gateway.main:run"
 
 # Use this if you prefer groups over extras (recommended for dev-only deps)
 [dependency-groups]
@@ -33,7 +57,7 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["tiny_gateway*"]
 
 [tool.setuptools.package-data]
-app = ["resources/*.html", "resources/*.yml"]
+tiny_gateway = ["resources/*.html", "resources/*.yml"]

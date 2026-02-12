@@ -1,0 +1,2 @@
+"""Tiny Gateway package."""
+

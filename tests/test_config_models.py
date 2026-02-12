@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.main import create_application
-from app.models.config_models import AppConfig
+from tiny_gateway.main import create_application
+from tiny_gateway.models.config_models import AppConfig
 
 
 def test_app_config_rejects_user_with_unknown_tenant():

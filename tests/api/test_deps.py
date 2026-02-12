@@ -1,8 +1,8 @@
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_config
-from app.models.config_models import AppConfig
+from tiny_gateway.api.deps import get_config
+from tiny_gateway.models.config_models import AppConfig
 
 
 def test_get_config_reads_from_app_state():
