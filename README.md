@@ -87,11 +87,11 @@ TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/your-config.yml
 
 ```bash
 docker run --rm -p 8000:8000 \
-  -e CONFIG_FILE=/app/config/runtime.yml \
+  -e CONFIG_FILE=/app/config/config.yml \
   -e SECRET_KEY=dev-secret-key-change-me \
   -e ACCESS_TOKEN_EXPIRE_MINUTES=30 \
   -e LOG_LEVEL=INFO \
-  -v "/absolute/path/to/your-config.yml:/app/config/runtime.yml:ro" \
+  -v "/absolute/path/to/your-config.yml:/app/config/config.yml:ro" \
   ghcr.io/paul-callahan/tiny-gateway:latest
 ```
 

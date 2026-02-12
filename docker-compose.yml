@@ -6,14 +6,14 @@ services:
     ports:
       - "${TINY_GATEWAY_PORT:-8000}:8000"
     environment:
-      - CONFIG_FILE=${TINY_GATEWAY_CONFIG_PATH_IN_CONTAINER:-/app/config/runtime.yml}
+      - CONFIG_FILE=${TINY_GATEWAY_CONFIG_PATH_IN_CONTAINER:-/app/config/config.yml}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-me}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - type: bind
         source: ${TINY_GATEWAY_CONFIG_FILE:-./sample-configs/basic-single-tenant.yml}
-        target: ${TINY_GATEWAY_CONFIG_PATH_IN_CONTAINER:-/app/config/runtime.yml}
+        target: ${TINY_GATEWAY_CONFIG_PATH_IN_CONTAINER:-/app/config/config.yml}
         read_only: true
     depends_on:
       - mock-backend
