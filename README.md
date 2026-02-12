@@ -3,6 +3,28 @@
 Tiny Gateway is a lightweight API gateway for multi-tenant development environments.
 It handles authentication, role-based authorization for proxied routes, and forwards tenant context to backend services.
 
+```mermaid
+graph  LR
+subgraph "Docker"
+    TinyGateway(Tiny Gateway)
+    UIServer[Dev UI Server]
+
+    subgraph "Microservices"
+    Service1
+    Service2
+    end
+end
+
+subgraph Browser
+App
+end
+
+App <--> TinyGateway
+TinyGateway -- proxy <--> UIServer
+TinyGateway -- proxy <--> Service1
+TinyGateway -- proxy <--> Service2
+```
+
 ## Development-Only Use
 
 This project is intended for development and testing environments, not production.
