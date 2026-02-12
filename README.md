@@ -1,199 +1,170 @@
 # Tiny Gateway
 
-A lightweight API gateway for multi-tenant microservice development environments. Handles JWT authentication, role-based authorization, and request proxying with tenant isolation.
+Tiny Gateway is a lightweight API gateway for multi-tenant development environments.
+It handles authentication, role-based authorization for proxied routes, and forwards tenant context to backend services.
 
-```mermaid
-graph  LR
-subgraph "Docker" 
-    TinyGateway(Tiny Gateway)
-    UIServer[Dev UI Server]
+## Development-Only Use
 
-    subgraph "Microservices"
-    Service1
-    Service2
-    end
+This project is intended for development and testing environments, not production.
 
-end
+## Key Capabilities
 
-subgraph Browser
-App
-end
-
-App <--> TinyGateway
-TinyGateway -- proxy <--> UIServer
-TinyGateway -- proxy <--> Service1
-TinyGateway -- proxy <--> Service2
-```
-
-## ⚠️ Development Use Only
-This service is designed exclusively for development and testing environments. Do not deploy to production.
-
-## What It Does
-
-- Authenticates users via JWT tokens containing tenant and role information
-- Enables role-based access control (RBAC) 
-- Proxies authenticated requests to backend services with tenant context
-- Maintains tenant isolation across all operations
-- Configured entirely through YAML files
+- Issues JWT access tokens via `POST /api/v1/auth/login`
+- Exposes current-user info via `GET /api/v1/users/me`
+- Enforces RBAC on proxied routes using configured roles and permissions
+- Enforces tenant/role binding: token claims must match the current configured user
+- Proxies matched routes to configured upstream targets
+- Supports path rewrite and host header rewriting per proxy rule
+- Adds `X-Tenant-ID` to proxied requests
+- Loads configuration from YAML (`CONFIG_FILE`) with packaged defaults for quick startup
 
 ## Prerequisites
 
-- Docker and Docker Compose
+- Docker and Docker Compose (for containerized run)
+- Python 3.13+ and `uv` (for local run)
 
-## Getting Started
+## Run with Docker Compose
 
-1. **Clone the repository**
+1. Configure the gateway:
+   - Edit `config/config.yml` for your tenants, users, roles, and proxy targets.
+
+2. Start the service:
    ```bash
-   git clone <repository-url>
-   cd tiny-gateway
+   docker compose up --build
    ```
 
-2. **Configure the service**
-   Edit `config/config.yml` to set up your routes, users, and permissions.
-
-3. **Start the gateway**
+3. Verify:
    ```bash
-   docker-compose up --build
+   curl http://localhost:8000/health
    ```
-   
-   The gateway will be available at `http://localhost:8000`. The test login page is available at `/test_login`.
 
-## Multi-Tenant Architecture
+4. Optional helper endpoints:
+   - `http://localhost:8000/test_login` (simple login page)
+   - `http://localhost:8000/docs` (OpenAPI UI)
 
-The API Gateway supports multi-tenancy, where each user is associated with a single tenant. This provides logical isolation between different tenants' data and operations.
+5. Stop the stack:
+   ```bash
+   docker compose down
+   ```
 
+## Run with Docker (Single Container)
 
-### Configuration
+1. Build the image:
+   ```bash
+   docker build -t tiny-gateway:local .
+   ```
 
-Edit `config.yml` to configure:
+2. Run with your local config mounted:
+   ```bash
+   docker run --rm -p 8000:8000 \
+     -e CONFIG_FILE=/app/config/config.yml \
+     -e SECRET_KEY=dev-secret-key-change-me \
+     -e ACCESS_TOKEN_EXPIRE_MINUTES=30 \
+     -e LOG_LEVEL=INFO \
+     -v "$(pwd)/config:/app/config:ro" \
+     tiny-gateway:local
+   ```
 
-- **Tenants**: Define your tenant IDs
-  ```yaml
-  tenants:
-    - id: tenant-1
-    - id: tenant-2
-  ```
+3. Verify:
+   ```bash
+   curl http://localhost:8000/health
+   ```
 
-- **Users**: Assign users to specific tenants
-  ```yaml
-  users:
-    - name: user1
-      password: pass123
-      roles: [user]
-      tenant_id: tenant-1  # Required field
-  ```
+Note: If `CONFIG_FILE` is not set, the app loads packaged `tiny_gateway/resources/default_config.yml`.
 
-- **Roles**: Define permissions per tenant
-  ```yaml
-  roles:
-    admin:
-      - resource: "*"
-        actions: [read, write, create, delete]
-    user:
-      - resource: "data"
-        actions: [read]
-  ```
+## Configuration Reference
 
-- **Proxies**: Configure request routing to backend services
-  ```yaml
-  proxy:
-    - endpoint: /api/data
-      target: http://backend-service/
-      rewrite: /data
-      change_origin: true  # If true, updates the Host header to match target
-  ```
-
-  The proxy will forward requests from `{endpoint}/*` to `{target}{rewrite}/*` by replacing the endpoint prefix.
-  If `rewrite` is omitted or empty, the original request path is preserved.
-  For example, request `/api/data/items`:
-  - with `rewrite: /data` => `http://backend-service/data/items`
-  - with `rewrite: ""` => `http://backend-service/api/data/items`
-
-### Tenant ID in JWT Tokens
-
-Each JWT token includes the user's `tenant_id` in its payload. Backend services can use this to enforce tenant isolation at the data access layer.
-
-Example JWT payload:
-```json
-{
-  "sub": "username",
-  "roles": ["user"],
-  "tenant_id": "tenant-1",
-  "exp": 1234567890
-}
-```
-
-### HTTP Headers to Backend Services
-
-The gateway forwards tenant information to backend services via HTTP headers:
-
-- **`X-Tenant-ID`**: Contains the tenant ID from the JWT token, enabling backend services to enforce tenant isolation
-
-Note: Role information is currently only available in the JWT token itself. Backend services should decode the JWT to access role information for authorization decisions.
-
-Example configuration:
+Primary configuration is YAML (typically `config/config.yml`):
 
 ```yaml
+tenants:
+  - id: tenant-1
+  - id: tenant-2
+
 users:
-  - name: admin
-    password: adminpass
-    roles: [admin]
-    tenant_id: test-tenant
+  - name: alice
+    password: pass123          # plaintext or bcrypt hash
+    tenant_id: tenant-1
+    roles: [editor]
 
 roles:
-  admin:
-    - resource: "*"
-      actions: [read, write, create, delete]
+  editor:
+    - resource: graphs
+      actions: [create, read, update, delete, execute]
 
 proxy:
-  - endpoint: /api/service
-    target: http://localhost:3000
+  - endpoint: /api/v1/graph
+    target: http://graph-composer:8000/
     rewrite: ""
     change_origin: true
+    resource: graphs           # optional RBAC resource override
 ```
 
-## Configuration
+### Proxy Behavior
 
-The gateway is configured through `config/config.yml`. Key sections:
+- Request matching is prefix-based against `proxy[].endpoint`
+- Most-specific endpoint wins when multiple entries match
+- Path rewrite behavior:
+  - `rewrite: ""` keeps the endpoint path prefix
+  - `rewrite: "/new-prefix"` replaces endpoint prefix with `/new-prefix`
+- If `change_origin: true`, `Host` is rewritten to the upstream target host
 
-- **tenants**: Define tenant IDs
-- **users**: Define users with passwords, roles, and tenant assignments  
-- **roles**: Define permissions for resources and actions
-- **proxy**: Define endpoint-to-backend routing rules
+### RBAC Action Mapping for Proxied Requests
 
-See the example configuration in `config/config.yml` for the complete structure.
+- `GET`, `HEAD`, `OPTIONS` -> requires `read`
+- `POST` -> requires one of `create`, `write`, `execute`
+- `PUT`, `PATCH` -> requires one of `update`, `write`
+- `DELETE` -> requires one of `delete`, `write`
+
+Permission matching details:
+
+- `resource: "*"` matches any proxied resource
+- action `"*"` matches any action
+- `proxy[].resource` (if set) is used for RBAC checks; otherwise the resource is inferred from the endpoint tail segment
+
+### Token Validation and Tenant Binding
+
+On authenticated requests, token claims are validated and bound to current config state:
+
+- user (`sub`) must still exist
+- token `tenant_id` must match configured user tenant
+- token roles must match configured user roles
+
+If any of these checks fails, the request is rejected.
 
 ## API Endpoints
 
-- `POST /api/v1/auth/login` - Obtain JWT token with tenant context
-- `GET /api/v1/users/me` - Get current user information including tenant ID
+- `POST /api/v1/auth/login`
+  - OAuth2 password flow form fields (`username`, `password`)
+  - returns `{ "access_token": "...", "token_type": "bearer" }`
+- `GET /api/v1/users/me`
+  - requires `Authorization: Bearer <token>`
+  - returns username, roles, tenant_id
+- `GET /health`
+  - service health endpoint
+- `GET /test_login`
+  - serves packaged login HTML page
 
-## Running Tests
+### Example Authentication Flow
 
-Using the Makefile (recommended):
-```bash
-make test-unit         # Run unit tests only
-make test-integration  # Run integration tests only  
-make test-all          # Run all tests
-```
+1. Get a token:
+   ```bash
+   curl -X POST http://localhost:8000/api/v1/auth/login \
+     -H 'Content-Type: application/x-www-form-urlencoded' \
+     -d 'username=paul&password=cleverpass123'
+   ```
 
-Or with Docker:
-```bash
-docker-compose exec tiny-gateway pytest tests/ -v
-```
+2. Use the token:
+   ```bash
+   curl http://localhost:8000/api/v1/users/me \
+     -H "Authorization: Bearer <access_token>"
+   ```
 
-## Development Without Docker
+## Local Development (Without Docker)
 
-If you prefer to run without Docker:
-
-### Prerequisites
-- Python 3.13+
-- uv package manager (recommended) or pip
-
-### Setup
 1. Install dependencies:
    ```bash
-   uv sync
+   uv sync --group dev
    ```
 
 2. Run the service:
@@ -205,21 +176,35 @@ If you prefer to run without Docker:
    uv run tiny-gateway
    ```
 
-### Environment Variables
-- `CONFIG_FILE`: Path to configuration file (default: packaged `tiny_gateway/resources/default_config.yml`)
-- `SECRET_KEY`: JWT signing key (default: development key)  
-- `ACCESS_TOKEN_EXPIRE_MINUTES`: Token expiration time (default: 30)
+3. Run tests:
+   ```bash
+   make test-unit
+   make test-integration
+   make test-all
+   ```
+
+## Environment Variables
+
+- `CONFIG_FILE`: YAML config file path
+- `SECRET_KEY`: JWT signing key
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: token lifetime in minutes
+- `LOG_LEVEL`: logger level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)
+- `HOST`: runtime host for CLI entrypoint (`tiny-gateway`)
+- `PORT`: runtime port for CLI entrypoint
+- `RELOAD`: enables reload for CLI entrypoint when set to `1`, `true`, or `yes`
 
 ## Project Structure
 
-```
+```text
 .
-├── tiny_gateway/                      # Application code
-│   ├── api/                  # API routes
-│   ├── core/                 # Core functionality
-│   ├── models/               # Data models
-│   └── config/               # Configuration
-├── tests/                    # Test files
-├── config/                   # Configuration files
-└── main.py                  # Application entry point
+├── tiny_gateway/            # Python package
+│   ├── api/                 # API routers and endpoint handlers
+│   ├── core/                # Security and proxy middleware
+│   ├── models/              # Pydantic config and API schemas
+│   ├── resources/           # Packaged default config and login page
+│   └── main.py              # App factory and runtime entrypoint
+├── config/                  # Example runtime configuration
+├── tests/                   # Unit and integration tests
+├── Dockerfile
+└── docker-compose.yml
 ```
