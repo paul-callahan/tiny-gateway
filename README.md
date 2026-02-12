@@ -151,6 +151,11 @@ proxy:
     rewrite: ""
     change_origin: true
     resource: reports        # optional RBAC resource override
+  - endpoint: /api/analytics
+    target: http://analytics-api:9100/
+    rewrite: "/v1"
+    change_origin: true
+    resource: reports
 ```
 
 ## Behavior Notes
