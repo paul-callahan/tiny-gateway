@@ -29,9 +29,28 @@ TinyGateway -- proxy <--> Service2
 
 This project is intended for development and testing environments, not production.
 
-## Quick Start (One Command Demo)
+## Quick Start (Primary)
 
-This repo ships a working demo path by default:
+Run Tiny Gateway directly from GHCR with your own `config.yml`:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e CONFIG_FILE=/app/config/config.yml \
+  -v "/absolute/path/to/config.yml:/app/config/config.yml:ro" \
+  ghcr.io/paul-callahan/tiny-gateway:latest
+```
+
+`/absolute/path/to/config.yml` is recommended, not required. A relative host path also works (resolved from your current shell directory), for example: `-v "./config.yml:/app/config/config.yml:ro"`.
+
+Then verify:
+
+```bash
+curl http://localhost:8000/health
+```
+
+## Alternative: One Command Demo (Docker Compose)
+
+This repo also ships a demo path by default:
 
 - prebuilt image: `ghcr.io/paul-callahan/tiny-gateway:latest`
 - default config: `sample-configs/basic-single-tenant.yml`
@@ -41,12 +60,6 @@ Run:
 
 ```bash
 docker compose up
-```
-
-Then verify:
-
-```bash
-curl http://localhost:8000/health
 ```
 
 Login and test proxied route:
@@ -67,20 +80,7 @@ Stop:
 docker compose down
 ```
 
-## Use Your Own `config.yml`
-
-### Primary: Docker Run (single container)
-
-```bash
-docker run --rm -p 8000:8000 \
-  -e CONFIG_FILE=/app/config/config.yml \
-  -v "/absolute/path/to/config.yml:/app/config/config.yml:ro" \
-  ghcr.io/paul-callahan/tiny-gateway:latest
-```
-
-`/absolute/path/to/config.yml` is recommended, not required. A relative host path also works (resolved from your current shell directory), for example: `-v "./config.yml:/app/config/config.yml:ro"`.
-
-### Option B: Docker Compose
+## Use Your Own `config.yml` with Docker Compose
 
 Point compose to your config file with one env var:
 
