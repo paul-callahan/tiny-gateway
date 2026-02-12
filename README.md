@@ -1,10 +1,11 @@
 # Tiny Gateway
 
-A lightweight API gateway for multi-tenant microservice development environments. Handles JWT authentication, role-based authorization, and request proxying with tenant isolation.
+Tiny Gateway is a lightweight API gateway for multi-tenant development environments.
+It handles authentication, role-based authorization for proxied routes, and forwards tenant context to backend services.
 
 ```mermaid
-graph  LR
-subgraph "Docker" 
+graph LR
+subgraph "Docker"
     TinyGateway(Tiny Gateway)
     UIServer[Dev UI Server]
 
@@ -12,7 +13,6 @@ subgraph "Docker"
     Service1
     Service2
     end
-
 end
 
 subgraph Browser
@@ -25,201 +25,198 @@ TinyGateway -- proxy <--> Service1
 TinyGateway -- proxy <--> Service2
 ```
 
-## ⚠️ Development Use Only
-This service is designed exclusively for development and testing environments. Do not deploy to production.
+## Development-Only Use
 
-## What It Does
+This project is intended for development and testing environments, not production.
 
-- Authenticates users via JWT tokens containing tenant and role information
-- Enables role-based access control (RBAC) 
-- Proxies authenticated requests to backend services with tenant context
-- Maintains tenant isolation across all operations
-- Configured entirely through YAML files
+## Why Tiny Gateway vs Traefik/NGINX?
 
-## Prerequisites
+Traefik and NGINX are excellent general-purpose reverse proxies.
+Tiny Gateway focuses on a narrower problem: auth- and tenant-aware proxying for local/dev stacks with minimal setup.
 
-- Docker and Docker Compose
+What Tiny Gateway gives you out-of-the-box:
 
-## Getting Started
+- login endpoint that issues JWTs from YAML-defined users
+- tenant and role claims enforced on every proxied request
+- tenant/role binding back to current config state
+- direct RBAC mapping by HTTP method + resource
+- automatic `X-Tenant-ID` forwarding upstream
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd tiny-gateway
-   ```
-
-2. **Configure the service**
-   Edit `config/config.yml` to set up your routes, users, and permissions.
-
-3. **Start the gateway**
-   ```bash
-   docker-compose up --build
-   ```
-   
-   The gateway will be available at `http://localhost:8000`. The test login page is available at `/test_login`.
-
-## Multi-Tenant Architecture
-
-The API Gateway supports multi-tenancy, where each user is associated with a single tenant. This provides logical isolation between different tenants' data and operations.
+If you already have a production-grade authn/authz stack, Traefik/NGINX + external identity policy is often the better fit.
+If you want a single self-contained gateway for local dev teams, this project is optimized for that workflow.
 
 
-### Configuration
+## Quick Start
 
-Edit `config.yml` to configure:
+Run Tiny Gateway directly from GHCR with your own `config.yml`:
 
-- **Tenants**: Define your tenant IDs
-  ```yaml
-  tenants:
-    - id: tenant-1
-    - id: tenant-2
-  ```
-
-- **Users**: Assign users to specific tenants
-  ```yaml
-  users:
-    - name: user1
-      password: pass123
-      roles: [user]
-      tenant_id: tenant-1  # Required field
-  ```
-
-- **Roles**: Define permissions per tenant
-  ```yaml
-  roles:
-    admin:
-      - resource: "*"
-        actions: [read, write, create, delete]
-    user:
-      - resource: "data"
-        actions: [read]
-  ```
-
-- **Proxies**: Configure request routing to backend services
-  ```yaml
-  proxy:
-    - endpoint: /api/data
-      target: http://backend-service/
-      rewrite: /data
-      change_origin: true  # If true, updates the Host header to match target
-  ```
-
-  The proxy will forward requests from `{endpoint}/*` to `{target}{rewrite}/*` by replacing the endpoint prefix.
-  If `rewrite` is omitted or empty, the original request path is preserved.
-  For example, request `/api/data/items`:
-  - with `rewrite: /data` => `http://backend-service/data/items`
-  - with `rewrite: ""` => `http://backend-service/api/data/items`
-
-### Tenant ID in JWT Tokens
-
-Each JWT token includes the user's `tenant_id` in its payload. Backend services can use this to enforce tenant isolation at the data access layer.
-
-Example JWT payload:
-```json
-{
-  "sub": "username",
-  "roles": ["user"],
-  "tenant_id": "tenant-1",
-  "exp": 1234567890
-}
+```bash
+docker run --rm -p 8000:8000 \
+  -e CONFIG_FILE=/app/config/config.yml \
+  -v "/absolute/path/to/config.yml:/app/config/config.yml:ro" \
+  ghcr.io/paul-callahan/tiny-gateway:latest
 ```
 
-### HTTP Headers to Backend Services
+`/absolute/path/to/config.yml` is recommended, not required. A relative host path also works (resolved from your current shell directory), for example: `-v "./config.yml:/app/config/config.yml:ro"`.
 
-The gateway forwards tenant information to backend services via HTTP headers:
+Then verify:
 
-- **`X-Tenant-ID`**: Contains the tenant ID from the JWT token, enabling backend services to enforce tenant isolation
+```bash
+curl http://localhost:8000/health
+```
 
-Note: Role information is currently only available in the JWT token itself. Backend services should decode the JWT to access role information for authorization decisions.
+## Docker Compose Demo
 
-Example configuration:
+This repo also ships a demo path by default:
+
+- prebuilt image: `ghcr.io/paul-callahan/tiny-gateway:latest`
+- default config: `sample-configs/basic-single-tenant.yml`
+- demo upstream: `mock-backend` (from `docker-compose.yml`)
+
+Run:
+
+```bash
+docker compose up
+```
+
+Login and test proxied route:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'username=admin&password=admin123'
+
+# Copy the access_token value from the response, then:
+curl http://localhost:8000/api/service \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+## Use Your Own `config.yml` with Docker Compose
+
+Point compose to your config file with one env var:
+
+```bash
+TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/config.yml docker compose up
+```
+
+or put it in `.env` (see `.env.example`):
+
+```env
+TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/config.yml
+```
+
+## Sample Configs
+
+`sample-configs/` contains ready-to-use examples:
+
+- `basic-single-tenant.yml`: single tenant + demo upstream
+- `multi-tenant-rbac.yml`: multiple tenants with role-scoped access
+- `path-rewrite.yml`: endpoint prefix rewrite example
+- `multi-upstream.yml`: routes to multiple upstream services
+- `wildcard-admin.yml`: broad wildcard permissions
+
+## Configuration Schema
 
 ```yaml
+tenants:
+  - id: tenant-a
+  - id: tenant-b
+
 users:
-  - name: admin
-    password: adminpass
-    roles: [admin]
-    tenant_id: test-tenant
+  - name: alice
+    password: pass123        # plaintext or bcrypt hash
+    tenant_id: tenant-a
+    roles: [editor]
+  - name: bob
+    password: pass456
+    tenant_id: tenant-b
+    roles: [viewer]
 
 roles:
-  admin:
-    - resource: "*"
-      actions: [read, write, create, delete]
+  editor:
+    - resource: reports
+      actions: [read, create, update]
+  viewer:
+    - resource: reports
+      actions: [read]
 
 proxy:
-  - endpoint: /api/service
-    target: http://localhost:3000
+  - endpoint: /api/reports
+    target: http://reports-api:9000/
     rewrite: ""
     change_origin: true
+    resource: reports        # optional RBAC resource override
+  - endpoint: /api/analytics
+    target: http://analytics-api:9100/
+    rewrite: "/v1"
+    change_origin: true
+    resource: reports
 ```
 
-## Configuration
+## Behavior Notes
 
-The gateway is configured through `config/config.yml`. Key sections:
+### Proxy Matching and Rewrite
 
-- **tenants**: Define tenant IDs
-- **users**: Define users with passwords, roles, and tenant assignments  
-- **roles**: Define permissions for resources and actions
-- **proxy**: Define endpoint-to-backend routing rules
+- matching is prefix-based (`proxy[].endpoint`)
+- if multiple routes match, most-specific endpoint wins
+- `rewrite: ""` preserves external endpoint prefix
+- `rewrite: "/new-prefix"` replaces endpoint prefix
+- `change_origin: true` rewrites `Host` header to upstream host
 
-See the example configuration in `config/config.yml` for the complete structure.
+### RBAC Mapping for Proxied Requests
+
+- `GET`, `HEAD`, `OPTIONS` -> `read`
+- `POST` -> one of `create`, `write`, `execute`
+- `PUT`, `PATCH` -> one of `update`, `write`
+- `DELETE` -> one of `delete`, `write`
+
+Permission matching:
+
+- `resource: "*"` matches all resources
+- action `"*"` matches all actions
+- `proxy[].resource` is used when present
+- otherwise resource is inferred from endpoint tail segment
+
+### Tenant and Role Binding
+
+For authenticated requests, token claims are re-validated against configured users:
+
+- user (`sub`) must exist
+- token `tenant_id` must match configured user tenant
+- token roles must match configured user roles
+
+## Startup Config Validation
+
+Config is validated immediately at app startup.
+If config has issues (missing file, invalid YAML, or schema/role/tenant errors), startup fails early with a clear error message including the config path and reason.
 
 ## API Endpoints
 
-- `POST /api/v1/auth/login` - Obtain JWT token with tenant context
-- `GET /api/v1/users/me` - Get current user information including tenant ID
+- `POST /api/v1/auth/login`
+- `GET /api/v1/users/me`
+- `GET /health`
+- `GET /test_login`
+- `GET /docs`
 
-## Running Tests
+## Environment Variables
 
-Using the Makefile (recommended):
-```bash
-make test-unit         # Run unit tests only
-make test-integration  # Run integration tests only  
-make test-all          # Run all tests
-```
+- `CONFIG_FILE`: config file path inside container/runtime
+- `SECRET_KEY`: JWT signing key
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: token lifetime in minutes
+- `LOG_LEVEL`: `DEBUG|INFO|WARNING|ERROR|CRITICAL`
+- `HOST`: CLI host override
+- `PORT`: CLI port override
+- `RELOAD`: CLI reload toggle (`1`, `true`, `yes`)
 
-Or with Docker:
-```bash
-docker-compose exec tiny-gateway pytest tests/ -v
-```
+Docker Compose helpers (in `.env.example`):
 
-## Development Without Docker
-
-If you prefer to run without Docker:
-
-### Prerequisites
-- Python 3.13+
-- uv package manager (recommended) or pip
-
-### Setup
-1. Install dependencies:
-   ```bash
-   uv sync
-   ```
-
-2. Run the service:
-   ```bash
-   uv run uvicorn tiny_gateway.main:app --reload
-   ```
-   or
-   ```bash
-   uv run tiny-gateway
-   ```
-
-### Environment Variables
-- `CONFIG_FILE`: Path to configuration file (default: packaged `tiny_gateway/resources/default_config.yml`)
-- `SECRET_KEY`: JWT signing key (default: development key)  
-- `ACCESS_TOKEN_EXPIRE_MINUTES`: Token expiration time (default: 30)
-
-## Project Structure
-
-```
-.
-├── tiny_gateway/                      # Application code
-│   ├── api/                  # API routes
-│   ├── core/                 # Core functionality
-│   ├── models/               # Data models
-│   └── config/               # Configuration
-├── tests/                    # Test files
-├── config/                   # Configuration files
-└── main.py                  # Application entry point
-```
+- `TINY_GATEWAY_IMAGE`
+- `TINY_GATEWAY_PORT`
+- `TINY_GATEWAY_CONFIG_FILE`
+- `TINY_GATEWAY_CONFIG_PATH_IN_CONTAINER`

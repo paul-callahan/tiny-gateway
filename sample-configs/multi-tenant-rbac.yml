@@ -1,0 +1,36 @@
+# Multi-tenant setup with separate users and scoped roles.
+tenants:
+  - id: tenant-a
+  - id: tenant-b
+
+users:
+  - name: tenant_a_admin
+    password: adminA123
+    tenant_id: tenant-a
+    roles: [admin]
+  - name: tenant_a_viewer
+    password: viewerA123
+    tenant_id: tenant-a
+    roles: [viewer]
+  - name: tenant_b_editor
+    password: editorB123
+    tenant_id: tenant-b
+    roles: [editor]
+
+roles:
+  admin:
+    - resource: reports
+      actions: [read, create, update, delete, write]
+  editor:
+    - resource: reports
+      actions: [read, create, update]
+  viewer:
+    - resource: reports
+      actions: [read]
+
+proxy:
+  - endpoint: /api/reports
+    target: http://reports-api:9000/
+    rewrite: ""
+    change_origin: true
+    resource: reports

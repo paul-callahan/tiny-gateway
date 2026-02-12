@@ -1,0 +1,20 @@
+# "Break-glass" style config: one tenant admin with wildcard permissions.
+tenants:
+  - id: tenant-lab
+
+users:
+  - name: superadmin
+    password: superadmin123
+    tenant_id: tenant-lab
+    roles: [superadmin]
+
+roles:
+  superadmin:
+    - resource: "*"
+      actions: ["*"]
+
+proxy:
+  - endpoint: /api
+    target: http://gateway-upstream:8080/
+    rewrite: ""
+    change_origin: true

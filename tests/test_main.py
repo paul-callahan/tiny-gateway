@@ -1,7 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 from fastapi import status
-import yaml
 
 from tests.constants import TestConstants
 
@@ -63,21 +62,21 @@ class TestMainEndpoints:
 
     def test_create_application_missing_config_file_raises(self, monkeypatch):
         """Test startup fails with missing config file."""
-        from tiny_gateway.main import create_application
+        from tiny_gateway.main import ConfigLoadError, create_application
 
         monkeypatch.setenv("CONFIG_FILE", "/tmp/definitely-missing-config.yml")
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ConfigLoadError, match="file not found"):
             create_application()
 
     def test_create_application_invalid_yaml_raises(self, tmp_path, monkeypatch):
         """Test startup fails with malformed YAML config."""
-        from tiny_gateway.main import create_application
+        from tiny_gateway.main import ConfigLoadError, create_application
 
         broken_config = tmp_path / "broken-config.yml"
         broken_config.write_text("tenants: [\n", encoding="utf-8")
 
         monkeypatch.setenv("CONFIG_FILE", str(broken_config))
-        with pytest.raises(yaml.YAMLError):
+        with pytest.raises(ConfigLoadError, match="invalid YAML syntax"):
             create_application()
 
     def test_create_application_uses_packaged_default_config_outside_repo_cwd(self, tmp_path, monkeypatch):

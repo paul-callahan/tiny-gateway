@@ -1,0 +1,29 @@
+# Routes different endpoint prefixes to different upstream services.
+tenants:
+  - id: tenant-shared
+
+users:
+  - name: ops_user
+    password: ops123
+    tenant_id: tenant-shared
+    roles: [ops]
+
+roles:
+  ops:
+    - resource: inventory
+      actions: [read, update]
+    - resource: orders
+      actions: [read, create, update]
+
+proxy:
+  - endpoint: /api/inventory
+    target: http://inventory-service:8081/
+    rewrite: ""
+    change_origin: true
+    resource: inventory
+
+  - endpoint: /api/orders
+    target: http://orders-service:8082/
+    rewrite: /v1/orders
+    change_origin: true
+    resource: orders

@@ -1,0 +1,21 @@
+# Rewrites external /public/graphs/* to upstream /api/v2/graphs/*.
+tenants:
+  - id: tenant-graphs
+
+users:
+  - name: graph_editor
+    password: graph123
+    tenant_id: tenant-graphs
+    roles: [editor]
+
+roles:
+  editor:
+    - resource: graphs
+      actions: [read, create, update, delete, execute]
+
+proxy:
+  - endpoint: /public/graphs
+    target: http://graph-composer:8000/
+    rewrite: /api/v2/graphs
+    change_origin: true
+    resource: graphs

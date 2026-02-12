@@ -1,0 +1,21 @@
+# Basic single-tenant setup with one upstream service.
+# This is the default docker-compose demo config.
+tenants:
+  - id: tenant-dev
+
+users:
+  - name: admin
+    password: admin123
+    tenant_id: tenant-dev
+    roles: [admin]
+
+roles:
+  admin:
+    - resource: "*"
+      actions: [read, create, update, delete, write, execute]
+
+proxy:
+  - endpoint: /api/service
+    target: http://mock-backend:8080/
+    rewrite: ""
+    change_origin: true
