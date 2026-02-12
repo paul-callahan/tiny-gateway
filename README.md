@@ -29,7 +29,24 @@ TinyGateway -- proxy <--> Service2
 
 This project is intended for development and testing environments, not production.
 
-## Quick Start (Primary)
+## Why Tiny Gateway vs Traefik/NGINX?
+
+Traefik and NGINX are excellent general-purpose reverse proxies.
+Tiny Gateway focuses on a narrower problem: auth- and tenant-aware proxying for local/dev stacks with minimal setup.
+
+What Tiny Gateway gives you out-of-the-box:
+
+- login endpoint that issues JWTs from YAML-defined users
+- tenant and role claims enforced on every proxied request
+- tenant/role binding back to current config state
+- direct RBAC mapping by HTTP method + resource
+- automatic `X-Tenant-ID` forwarding upstream
+
+If you already have a production-grade authn/authz stack, Traefik/NGINX + external identity policy is often the better fit.
+If you want a single self-contained gateway for local dev teams, this project is optimized for that workflow.
+
+
+## Quick Start
 
 Run Tiny Gateway directly from GHCR with your own `config.yml`:
 
@@ -48,7 +65,7 @@ Then verify:
 curl http://localhost:8000/health
 ```
 
-## Alternative: One Command Demo (Docker Compose)
+## Docker Compose Demo
 
 This repo also ships a demo path by default:
 
@@ -103,22 +120,6 @@ TINY_GATEWAY_CONFIG_FILE=/absolute/path/to/config.yml
 - `path-rewrite.yml`: endpoint prefix rewrite example
 - `multi-upstream.yml`: routes to multiple upstream services
 - `wildcard-admin.yml`: broad wildcard permissions
-
-## Why Tiny Gateway vs Traefik/NGINX?
-
-Traefik and NGINX are excellent general-purpose reverse proxies.
-Tiny Gateway focuses on a narrower problem: auth- and tenant-aware proxying for local/dev stacks with minimal setup.
-
-What Tiny Gateway gives you out-of-the-box:
-
-- login endpoint that issues JWTs from YAML-defined users
-- tenant and role claims enforced on every proxied request
-- tenant/role binding back to current config state
-- direct RBAC mapping by HTTP method + resource
-- automatic `X-Tenant-ID` forwarding upstream
-
-If you already have a production-grade authn/authz stack, Traefik/NGINX + external identity policy is often the better fit.
-If you want a single self-contained gateway for local dev teams, this project is optimized for that workflow.
 
 ## Configuration Schema
 
