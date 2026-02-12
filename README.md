@@ -125,17 +125,25 @@ If you want a single self-contained gateway for local dev teams, this project is
 ```yaml
 tenants:
   - id: tenant-a
+  - id: tenant-b
 
 users:
   - name: alice
     password: pass123        # plaintext or bcrypt hash
     tenant_id: tenant-a
     roles: [editor]
+  - name: bob
+    password: pass456
+    tenant_id: tenant-b
+    roles: [viewer]
 
 roles:
   editor:
     - resource: reports
       actions: [read, create, update]
+  viewer:
+    - resource: reports
+      actions: [read]
 
 proxy:
   - endpoint: /api/reports
