@@ -1,8 +1,13 @@
 import logging
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from urllib.parse import urlparse
+
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+RESERVED_PATH_PREFIXES = ("/api/v1", "/health", "/test_login", "/docs", "/openapi.json")
+
 
 class Tenant(BaseModel):
     id: str
@@ -13,6 +18,25 @@ class ProxyConfig(BaseModel):
     resource: str | None = None
     rewrite: str = ""
     change_origin: bool = False
+
+    @field_validator("endpoint")
+    @classmethod
+    def endpoint_must_not_be_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("endpoint must not be empty")
+        return v
+
+    @field_validator("target")
+    @classmethod
+    def target_must_be_valid_http_url(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("target must not be empty")
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"target must be an HTTP or HTTPS URL, got '{v}'")
+        if not parsed.hostname:
+            raise ValueError(f"target must include a hostname, got '{v}'")
+        return v
 
 class User(BaseModel):
     name: str
@@ -38,6 +62,13 @@ class AppConfig(BaseModel):
         defined_roles = set(self.roles.keys())
         errors: list[str] = []
 
+        # Check for duplicate user names
+        seen_names: set[str] = set()
+        for user in self.users:
+            if user.name in seen_names:
+                errors.append(f"duplicate user name '{user.name}'")
+            seen_names.add(user.name)
+
         for user in self.users:
             if tenant_ids and user.tenant_id not in tenant_ids:
                 errors.append(
@@ -54,6 +85,22 @@ class AppConfig(BaseModel):
         if errors:
             raise ValueError("; ".join(errors))
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_proxy_endpoints(self) -> "AppConfig":
+        """Warn about proxy endpoints that shadow gateway routes."""
+        for proxy in self.proxy:
+            normalized = proxy.endpoint.strip().rstrip("/") or "/"
+            if normalized == "/":
+                raise ValueError(
+                    f"proxy endpoint '/' would capture all traffic and shadow gateway API routes"
+                )
+            for reserved in RESERVED_PATH_PREFIXES:
+                if reserved.startswith(normalized + "/") or reserved == normalized:
+                    raise ValueError(
+                        f"proxy endpoint '{proxy.endpoint}' conflicts with reserved gateway path '{reserved}'"
+                    )
         return self
 
     @classmethod

@@ -168,6 +168,8 @@ proxy:
 - `rewrite: ""` preserves external endpoint prefix
 - `rewrite: "/new-prefix"` replaces endpoint prefix
 - `change_origin: true` rewrites `Host` header to upstream host
+- query parameters are preserved and forwarded to the upstream service
+- upstream redirects (3xx) are passed through as-is (the gateway does not follow redirects)
 
 ### RBAC Mapping for Proxied Requests
 
@@ -180,8 +182,40 @@ Permission matching:
 
 - `resource: "*"` matches all resources
 - action `"*"` matches all actions
-- `proxy[].resource` is used when present
-- otherwise resource is inferred from endpoint tail segment
+- `proxy[].resource` is used when present; otherwise resource is inferred from the last segment of the endpoint path (e.g. `/api/v1/reports` infers resource `reports`)
+- simple singular/plural tolerance: `report` matches `reports` and vice-versa
+
+### Passwords
+
+User passwords in the YAML config can be **plaintext** or **bcrypt hashes**.
+Bcrypt hashes are detected automatically by a `$2b$` prefix.
+
+Generate a bcrypt hash:
+
+```bash
+python -c "from passlib.hash import bcrypt; print(bcrypt.using(rounds=12).hash('your-password'))"
+```
+
+### Upstream Connection
+
+The gateway connects to upstream services using HTTP/2 with connection pooling.
+Request bodies are limited to 10 MB by default.
+
+### Error Responses
+
+All gateway-generated errors are returned as JSON:
+
+```json
+{"detail": "error message"}
+```
+
+| Status | Meaning |
+|--------|---------|
+| 401 | Missing, invalid, or expired token |
+| 403 | Insufficient role permissions |
+| 502 | Upstream service unreachable |
+| 504 | Upstream service timed out |
+| 500 | Unexpected internal error |
 
 ### Tenant and Role Binding
 
@@ -195,6 +229,14 @@ For authenticated requests, token claims are re-validated against configured use
 
 Config is validated immediately at app startup.
 If config has issues (missing file, invalid YAML, or schema/role/tenant errors), startup fails early with a clear error message including the config path and reason.
+
+Additional validations:
+
+- proxy `target` must be a valid HTTP or HTTPS URL
+- proxy `endpoint` must not be empty or `/` (which would shadow gateway routes)
+- proxy endpoints must not conflict with reserved gateway paths (`/api/v1`, `/health`, `/docs`, etc.)
+- user names must be unique
+- user `tenant_id` and `roles` must reference defined tenants and roles
 
 ## API Endpoints
 

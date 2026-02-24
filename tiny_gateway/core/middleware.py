@@ -23,6 +23,7 @@ class ProxyMiddleware:
     DEFAULT_MAX_KEEPALIVE = 100
     DEFAULT_MAX_CONNECTIONS = 1000
     DEFAULT_KEEPALIVE_EXPIRY = 60.0
+    MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
     METHOD_ACTION_ALIASES = {
         "GET": {"read"},
         "HEAD": {"read"},
@@ -235,13 +236,17 @@ class ProxyMiddleware:
         rewritten_path = cls._rewrite_target_path(request_path, proxy_config)
         return f"{target_base}{rewritten_path}"
     
-    async def _proxy_request(self, request: StarletteRequest, proxy_config: ProxyConfig, 
+    async def _proxy_request(self, request: StarletteRequest, proxy_config: ProxyConfig,
                             headers: Dict[str, str]) -> httpx.Response:
         """Forward the request to the target service."""
         target_url = self._build_target_url(request.url.path, proxy_config)
-        
+
         body = await request.body()
-        
+        if len(body) > self.MAX_REQUEST_BODY_BYTES:
+            raise ValueError(
+                f"Request body too large ({len(body)} bytes, limit {self.MAX_REQUEST_BODY_BYTES})"
+            )
+
         return await self.client.request(
             method=request.method,
             url=target_url,
@@ -326,7 +331,13 @@ class ProxyMiddleware:
             error_msg = "Bad Gateway: Unable to connect to the upstream server"
             logger.error(f"Connection error while proxying to {proxy_config.target}: {str(e)}")
             await self._send_error_response(send, 502, error_msg)
-            
+
+        except httpx.TimeoutException as e:
+            # Timeout waiting for upstream service
+            error_msg = "Gateway Timeout: The upstream server did not respond in time"
+            logger.error(f"Timeout while proxying to {proxy_config.target}: {str(e)}")
+            await self._send_error_response(send, 504, error_msg)
+
         except Exception as e:
             # Unexpected errors
             error_msg = "Internal Server Error"
