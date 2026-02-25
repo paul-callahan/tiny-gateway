@@ -176,6 +176,48 @@ def test_proxy_middleware_applies_rewrite_prefix(test_app, mock_async_client):
     _, kwargs = mock_async_client.request.call_args
     assert kwargs["url"] == "http://test-server/graphs/items"
 
+
+def test_proxy_middleware_preserves_repeated_query_params(test_app, mock_async_client):
+    proxy_routes = [
+        ProxyConfig(
+            endpoint="/api/v1/graph",
+            target="http://test-server/",
+            rewrite="",
+            change_origin=True,
+        )
+    ]
+    test_user = User(
+        name="testuser",
+        password="testpassword",
+        tenant_id="test-tenant",
+        roles=["admin"],
+    )
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=proxy_routes,
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}],
+        ),
+        client=mock_async_client,
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token()
+
+    response = client.get(
+        "/api/v1/graph/search?tag=a&tag=b&limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    _, kwargs = mock_async_client.request.call_args
+    assert kwargs["params"] == [("tag", "a"), ("tag", "b"), ("limit", "10")]
+
+
 def test_non_proxied_endpoint(test_app, proxy_config, mock_async_client):
     # Configure the test app with middleware and test config, passing the mock client
     test_app.add_middleware(
@@ -564,7 +606,7 @@ def test_proxy_rejects_oversized_request_body(test_app, mock_async_client):
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 401
+    assert response.status_code == 413
     assert "too large" in response.json()["detail"]
     mock_async_client.request.assert_not_called()
 
