@@ -56,7 +56,7 @@ This service is designed exclusively for development and testing environments. D
    docker-compose up --build
    ```
    
-   The gateway will be available at `http://localhost:8000`. The test login page is available at `/test_login`.
+   The gateway will be available at `http://localhost:8000`. Gateway-managed auth/user/docs routes live under `/_gateway/*` (for example `/_gateway/auth/login`), and the test login page is available at `/test_login`.
 
 ## Multi-Tenant Architecture
 
@@ -94,13 +94,15 @@ Edit `config.yml` to configure:
         actions: [read]
   ```
 
-- **Proxies**: Configure request routing to backend services
+- **Proxies**: Configure request routing to backend services and optional RBAC enforcement
   ```yaml
   proxy:
     - endpoint: /api/data
       target: http://backend-service/
       rewrite: ""  # Currently unused, kept for future compatibility
       change_origin: true  # If true, updates the Host header to match target
+      required_resource: data
+      required_actions: [read]
   ```
 
   The proxy will forward requests from `{endpoint}/*` to `{target}/*` with the same path. For example, a request to `/api/data/items` will be forwarded to `http://backend-service/api/data/items`.
@@ -125,7 +127,10 @@ The gateway forwards tenant information to backend services via HTTP headers:
 
 - **`X-Tenant-ID`**: Contains the tenant ID from the JWT token, enabling backend services to enforce tenant isolation
 
-Note: Role information is currently only available in the JWT token itself. Backend services should decode the JWT to access role information for authorization decisions.
+RBAC enforcement happens in two places:
+
+- **API endpoints**: Each endpoint defines the required resource/action. For example, `GET /_gateway/users/me` requires `users:read`.
+- **Proxy routes**: Each proxy entry can declare `required_resource` and `required_actions` to authorize requests before forwarding.
 
 Example configuration:
 
@@ -146,6 +151,8 @@ proxy:
     target: http://localhost:3000
     rewrite: ""
     change_origin: true
+    required_resource: data
+    required_actions: [read, execute]
 ```
 
 ## Configuration
@@ -161,8 +168,8 @@ See the example configuration in `config/config.yml` for the complete structure.
 
 ## API Endpoints
 
-- `POST /api/v1/auth/login` - Obtain JWT token with tenant context
-- `GET /api/v1/users/me` - Get current user information including tenant ID
+- `POST /_gateway/auth/login` - Obtain JWT token with tenant context
+- `GET /_gateway/users/me` - Get current user information including tenant ID
 
 ## Running Tests
 

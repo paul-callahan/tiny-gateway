@@ -3,13 +3,13 @@ from typing import List
 
 from app.models.schemas import UserResponse, TokenPayload
 from app.models.config_models import AppConfig, User
-from app.api.deps import get_current_active_user, get_config
+from app.api.deps import get_current_active_user, get_config, require_permission
 
 router = APIRouter()
 
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(
-    current_user: TokenPayload = Depends(get_current_active_user),
+    current_user: TokenPayload = Depends(require_permission("users", "read")),
     config: AppConfig = Depends(get_config)
 ):
     """Get current user information"""

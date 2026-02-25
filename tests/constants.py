@@ -16,11 +16,14 @@ class TestConstants:
     
     VIEWER_USER = "viewer_user"
     VIEWER_PASSWORD = "viewerpass"
+
+    LIMITED_USER = "limited_user"
+    LIMITED_PASSWORD = "limitedpass"
     
     # API endpoints
     ENDPOINTS = {
-        "LOGIN": "/api/v1/auth/login",
-        "USER_ME": "/api/v1/users/me",
+        "LOGIN": "/_gateway/auth/login",
+        "USER_ME": "/_gateway/users/me",
         "HEALTH": "/health",
     }
     
@@ -35,4 +38,5 @@ class TestConstants:
         "ADMIN": "admin",
         "EDITOR": "editor", 
         "VIEWER": "viewer",
+        "LIMITED": "limited",
     }

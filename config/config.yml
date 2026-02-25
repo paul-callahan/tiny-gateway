@@ -11,6 +11,8 @@ proxy:
         target: http://graph-composer:8000/
         rewrite: ""
         change_origin: true
+        required_resource: graphs
+        required_actions: [read, execute]
 
 users:
     # Passwords can be plaintext or bcrypt hashed (recommended)
@@ -29,16 +31,21 @@ roles:
   admin:
     - resource: "tenants"
       actions: [read, write, create, delete]
+    - resource: "users"
+      actions: [read]
   tenant_admin:
     - resource: "users"
       actions: [ read, write, create, delete ]
   editor:
     - resource: graphs
       actions: [create, read, update, delete, execute]
+    - resource: "users"
+      actions: [read]
   viewer:
     - resource: graphs
       actions: [read]
-
+    - resource: "users"
+      actions: [read]
 
 
 

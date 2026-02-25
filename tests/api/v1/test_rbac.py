@@ -92,6 +92,19 @@ class TestRoleBasedAccessControl:
         assert data["tenant_id"] == TestConstants.TEST_TENANT, \
             f"Expected tenant {TestConstants.TEST_TENANT}, got {data.get('tenant_id')}"
 
+    def test_user_missing_permission_gets_forbidden(self):
+        """Test that users without permissions receive 403 responses."""
+        token = self._get_auth_token(TestConstants.LIMITED_USER, TestConstants.LIMITED_PASSWORD)
+        headers = TestDataFactory.create_auth_headers(token)
+
+        response = self.client.get(
+            TestConstants.ENDPOINTS["USER_ME"],
+            headers=headers
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN, \
+            f"Expected 403 for missing permissions, got {response.status_code}"
+
     def test_unauthorized_access(self):
         """Test that unauthorized requests are properly rejected."""
         response = self.client.get(TestConstants.ENDPOINTS["USER_ME"])

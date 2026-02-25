@@ -180,7 +180,7 @@ def proxy_client(proxy_test_config):
     
     app = FastAPI(
         title="Test API Gateway",
-        openapi_url="/api/v1/openapi.json"
+        openapi_url="/_gateway/openapi.json"
     )
     
     # Add proxy middleware with test config
@@ -380,7 +380,7 @@ class TestProxyIntegration:
         headers = TestDataFactory.create_auth_headers(auth_token_user1)
         
         # Call /users/me endpoint (not proxied)
-        response = proxy_client.get("/api/v1/users/me", headers=headers)
+        response = proxy_client.get("/_gateway/users/me", headers=headers)
         assert response.status_code == 200
         
         # Verify no request reached backend

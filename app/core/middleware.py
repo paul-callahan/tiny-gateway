@@ -4,9 +4,11 @@ import httpx
 from typing import Dict, Optional, Any, Tuple
 from starlette.requests import Request as StarletteRequest
 from jose import JWTError, jwt
+from fastapi import HTTPException
 
 from app.models.config_models import AppConfig, ProxyConfig
 from app.config.settings import settings
+from app.core.security import authorize_request
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +181,10 @@ class ProxyMiddleware:
         try:
             # Authenticate the request
             tenant_id, username, roles = await self._authenticate_request(dict(request.headers))
+
+            if proxy_config.required_resource and proxy_config.required_actions:
+                for action in proxy_config.required_actions:
+                    authorize_request(roles, proxy_config.required_resource, action, self.config)
             
             # Prepare headers for proxying
             headers = self._prepare_proxy_headers(
@@ -206,6 +212,9 @@ class ProxyMiddleware:
         except ValueError as e:
             # Authentication or validation errors
             await self._send_error_response(send, 401, str(e))
+
+        except HTTPException as e:
+            await self._send_error_response(send, e.status_code, e.detail)
             
         except httpx.ConnectError as e:
             # Connection errors to upstream service
