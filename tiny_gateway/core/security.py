@@ -39,7 +39,7 @@ def get_user(username: str, config: AppConfig) -> Optional[User]:
 
 def _is_password_hashed(password: str) -> bool:
     """Check if password is hashed (bcrypt format)."""
-    return password.startswith('$2b$') or password.startswith('$2a$')
+    return password.startswith('$2b$')
 
 def _validate_password(password: str, stored_password: str) -> bool:
     """Validate password against stored hash or plaintext."""

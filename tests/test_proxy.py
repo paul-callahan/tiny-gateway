@@ -200,13 +200,13 @@ def test_non_proxied_endpoint(test_app, proxy_config, mock_async_client):
 def test_proxy_route_precedence_prefers_most_specific_endpoint(test_app, mock_async_client):
     proxy_routes = [
         ProxyConfig(
-            endpoint="/api/v1",
+            endpoint="/svc",
             target="http://broad-target/",
             rewrite="",
             change_origin=True
         ),
         ProxyConfig(
-            endpoint="/api/v1/graph",
+            endpoint="/svc/graph",
             target="http://specific-target/",
             rewrite="",
             change_origin=True
@@ -236,13 +236,13 @@ def test_proxy_route_precedence_prefers_most_specific_endpoint(test_app, mock_as
     token = TestDataFactory.create_jwt_token()
 
     response = client.get(
-        "/api/v1/graph/items",
+        "/svc/graph/items",
         headers={"Authorization": f"Bearer {token}"}
     )
 
     assert response.status_code == 200
     _, kwargs = mock_async_client.request.call_args
-    assert kwargs["url"] == "http://specific-target/api/v1/graph/items"
+    assert kwargs["url"] == "http://specific-target/svc/graph/items"
 
 
 def test_proxy_endpoint_matching_respects_path_boundaries(test_app, mock_async_client):
@@ -494,6 +494,79 @@ def test_proxy_returns_500_on_unexpected_proxy_error(test_app, mock_async_client
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Internal Server Error"
+
+
+def test_proxy_returns_504_on_timeout(test_app, mock_async_client):
+    import httpx as _httpx
+
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        rewrite="",
+        change_origin=True,
+    )
+    test_user = User(name="testuser", password="testpassword", tenant_id="test-tenant", roles=["admin"])
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}],
+        ),
+        client=mock_async_client,
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token()
+
+    with patch.object(
+        ProxyMiddleware, "_proxy_request",
+        new=AsyncMock(side_effect=_httpx.ReadTimeout("timed out")),
+    ):
+        response = client.get("/api/v1/graph", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 504
+    assert response.json()["detail"] == "Gateway Timeout: The upstream server did not respond in time"
+
+
+def test_proxy_rejects_oversized_request_body(test_app, mock_async_client):
+    proxy_config = ProxyConfig(
+        endpoint="/api/v1/graph",
+        target="http://test-server/",
+        rewrite="",
+        change_origin=True,
+    )
+    test_user = User(name="testuser", password="testpassword", tenant_id="test-tenant", roles=["admin"])
+    admin_permission = Permission(resource="*", actions=["read", "write", "create", "update", "delete"])
+
+    test_app.add_middleware(
+        ProxyMiddleware,
+        config=AppConfig(
+            proxy=[proxy_config],
+            users=[test_user],
+            roles={"admin": [admin_permission]},
+            tenants=[{"id": "test-tenant"}],
+        ),
+        client=mock_async_client,
+    )
+
+    client = TestClient(test_app)
+    token = TestDataFactory.create_jwt_token()
+
+    # Create a body that exceeds the 10 MB limit
+    oversized_body = b"x" * (ProxyMiddleware.MAX_REQUEST_BODY_BYTES + 1)
+    response = client.post(
+        "/api/v1/graph",
+        content=oversized_body,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 401
+    assert "too large" in response.json()["detail"]
+    mock_async_client.request.assert_not_called()
 
 
 @pytest.mark.asyncio
