@@ -12,6 +12,10 @@ from tiny_gateway.core.security import validate_token_and_get_payload
 logger = logging.getLogger(__name__)
 
 
+class RequestBodyTooLargeError(Exception):
+    """Raised when a proxied request body exceeds the configured size limit."""
+
+
 class ProxyMiddleware:
     """
     Middleware for proxying authenticated requests to backend services.
@@ -243,7 +247,7 @@ class ProxyMiddleware:
 
         body = await request.body()
         if len(body) > self.MAX_REQUEST_BODY_BYTES:
-            raise ValueError(
+            raise RequestBodyTooLargeError(
                 f"Request body too large ({len(body)} bytes, limit {self.MAX_REQUEST_BODY_BYTES})"
             )
 
@@ -251,7 +255,8 @@ class ProxyMiddleware:
             method=request.method,
             url=target_url,
             headers=headers,
-            params=dict(request.query_params),
+            # Preserve repeated query parameter keys (e.g., ?tag=a&tag=b).
+            params=list(request.query_params.multi_items()),
             content=body,
             follow_redirects=False
         )
@@ -325,6 +330,9 @@ class ProxyMiddleware:
         except ValueError as e:
             # Authentication or validation errors
             await self._send_error_response(send, 401, str(e))
+
+        except RequestBodyTooLargeError as e:
+            await self._send_error_response(send, 413, str(e))
             
         except httpx.ConnectError as e:
             # Connection errors to upstream service

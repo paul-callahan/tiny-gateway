@@ -43,7 +43,7 @@ What Tiny Gateway gives you out-of-the-box:
 - automatic `X-Tenant-ID` forwarding upstream
 
 If you already have a production-grade authn/authz stack, Traefik/NGINX + external identity policy is often the better fit.
-If you want a single self-contained gateway for local dev teams, this project is optimized for that workflow.
+If you want a single self-contained gateway for local dev teams, this project is designed for that workflow.
 
 
 ## Quick Start
@@ -168,7 +168,7 @@ proxy:
 - `rewrite: ""` preserves external endpoint prefix
 - `rewrite: "/new-prefix"` replaces endpoint prefix
 - `change_origin: true` rewrites `Host` header to upstream host
-- query parameters are preserved and forwarded to the upstream service
+- query parameters (including repeated keys) are preserved and forwarded to the upstream service
 - upstream redirects (3xx) are passed through as-is (the gateway does not follow redirects)
 
 ### RBAC Mapping for Proxied Requests
@@ -198,21 +198,26 @@ python -c "from passlib.hash import bcrypt; print(bcrypt.using(rounds=12).hash('
 
 ### Upstream Connection
 
-The gateway connects to upstream services using HTTP/2 with connection pooling.
-Request bodies are limited to 10 MB by default.
+The gateway uses connection pooling and attempts HTTP/2 when the upstream supports it.
+Proxied request bodies are limited to 10 MB by default.
 
 ### Error Responses
 
-All gateway-generated errors are returned as JSON:
+Gateway errors are returned as JSON.
+Most error responses include a `detail` field:
 
 ```json
 {"detail": "error message"}
 ```
 
+For unmatched routes, the 404 response also includes `hint` and `endpoints` to make local debugging easier.
+
 | Status | Meaning |
 |--------|---------|
 | 401 | Missing, invalid, or expired token |
+| 404 | Route not found |
 | 403 | Insufficient role permissions |
+| 413 | Proxied request body too large |
 | 502 | Upstream service unreachable |
 | 504 | Upstream service timed out |
 | 500 | Unexpected internal error |
