@@ -23,7 +23,6 @@ RUN uv sync --frozen --no-dev
 COPY tiny_gateway/ ./tiny_gateway/
 COPY main.py ./
 COPY config/ ./config/
-COPY index.html ./
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser

@@ -41,6 +41,13 @@ class TestMainEndpoints:
         
         assert response.status_code == status.HTTP_404_NOT_FOUND, \
             f"Expected 404 for root endpoint, got {response.status_code}"
+        response_data = response.json()
+        assert response_data["detail"] == "There is no '/' route defined or it was not found. Check your config and your remote services."
+        assert response_data["hint"] == "Try one of the built-in endpoints."
+        assert response_data["endpoints"]["test_login"] == "/test_login"
+        assert response_data["endpoints"]["docs"] == "/docs"
+        assert response_data["endpoints"]["login"] == "/_gateway/auth/login"
+        assert response_data["endpoints"]["current_user"] == "/_gateway/users/me"
 
     def test_nonexistent_route_not_found(self, client):
         """Test non-existent route returns 404."""
@@ -48,6 +55,9 @@ class TestMainEndpoints:
         
         assert response.status_code == status.HTTP_404_NOT_FOUND, \
             f"Expected 404 for non-existent route, got {response.status_code}"
+        response_data = response.json()
+        assert response_data["detail"] == "There is no '/nonexistent-route' route defined or it was not found. Check your config and your remote services."
+        assert "endpoints" in response_data
     
     def test_health_check_response_format(self, client):
         """Test health check response has correct format."""

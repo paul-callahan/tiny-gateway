@@ -4,9 +4,17 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from typing import List, Dict, Any
 
+from tiny_gateway.config.settings import settings
+
 logger = logging.getLogger(__name__)
 
-RESERVED_PATH_PREFIXES = ("/api/v1", "/health", "/test_login", "/docs", "/openapi.json")
+RESERVED_PATH_PREFIXES = (
+    settings.API_V1_STR,
+    f"{settings.API_V1_STR}/openapi.json",
+    "/health",
+    "/test_login",
+    "/docs",
+)
 
 
 class Tenant(BaseModel):

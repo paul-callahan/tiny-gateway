@@ -88,7 +88,7 @@ class TestUsers:
         from tiny_gateway.models.schemas import TokenPayload
 
         app = FastAPI()
-        app.include_router(users_endpoint.router, prefix="/api/v1/users")
+        app.include_router(users_endpoint.router, prefix="/_gateway/users")
 
         config = AppConfig.from_dict(
             {
@@ -114,7 +114,7 @@ class TestUsers:
         )
 
         with TestClient(app) as local_client:
-            response = local_client.get("/api/v1/users/me")
+            response = local_client.get("/_gateway/users/me")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert response.json()["detail"] == "User not found"

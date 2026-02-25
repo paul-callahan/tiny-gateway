@@ -19,8 +19,8 @@ class TestConstants:
     
     # API endpoints
     ENDPOINTS = {
-        "LOGIN": "/api/v1/auth/login",
-        "USER_ME": "/api/v1/users/me",
+        "LOGIN": "/_gateway/auth/login",
+        "USER_ME": "/_gateway/users/me",
         "HEALTH": "/health",
     }
     

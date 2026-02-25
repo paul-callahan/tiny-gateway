@@ -82,7 +82,7 @@ docker compose up
 Login and test proxied route:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
+curl -X POST http://localhost:8000/_gateway/auth/login \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'username=admin&password=admin123'
 
@@ -234,14 +234,14 @@ Additional validations:
 
 - proxy `target` must be a valid HTTP or HTTPS URL
 - proxy `endpoint` must not be empty or `/` (which would shadow gateway routes)
-- proxy endpoints must not conflict with reserved gateway paths (`/api/v1`, `/health`, `/docs`, etc.)
+- proxy endpoints must not conflict with reserved gateway paths (`/_gateway`, `/health`, `/docs`, etc.)
 - user names must be unique
 - user `tenant_id` and `roles` must reference defined tenants and roles
 
 ## API Endpoints
 
-- `POST /api/v1/auth/login`
-- `GET /api/v1/users/me`
+- `POST /_gateway/auth/login`
+- `GET /_gateway/users/me`
 - `GET /health`
 - `GET /test_login`
 - `GET /docs`

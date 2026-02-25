@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import NoReturn
 
 import yaml
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from pydantic import ValidationError
-from starlette.responses import FileResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import FileResponse, JSONResponse
 
 from tiny_gateway.api.api import api_router
 from tiny_gateway.config.settings import settings
@@ -119,6 +121,28 @@ def create_application() -> FastAPI:
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
         lifespan=lifespan,
     )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+        """Provide actionable guidance for unmatched routes while preserving other HTTP errors."""
+        if exc.status_code == 404 and str(exc.detail) == "Not Found":
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "detail": f"There is no '{request.url.path}' route defined or it was not found. Check your config and your remote services.",
+                    "hint": "Try one of the built-in endpoints.",
+                    "endpoints": {
+                        "health": "/health",
+                        "test_login": "/test_login",
+                        "docs": "/docs",
+                        "openapi": f"{settings.API_V1_STR}/openapi.json",
+                        "login": f"{settings.API_V1_STR}/auth/login",
+                        "current_user": f"{settings.API_V1_STR}/users/me",
+                    },
+                },
+            )
+
+        return await http_exception_handler(request, exc)
 
     app.add_middleware(ProxyMiddleware, config=config)
     app.include_router(api_router)

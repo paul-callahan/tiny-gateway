@@ -109,7 +109,7 @@ def test_app_config_rejects_endpoint_conflicting_with_gateway_api():
         "tenants": [],
         "users": [],
         "roles": {},
-        "proxy": [{"endpoint": "/api/v1", "target": "http://backend:8080/"}],
+        "proxy": [{"endpoint": "/_gateway", "target": "http://backend:8080/"}],
     }
 
     with pytest.raises(ValidationError, match="conflicts with reserved gateway path"):
