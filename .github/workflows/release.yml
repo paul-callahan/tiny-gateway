@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build Release Distributions
+    name: Build Release Distribution
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
